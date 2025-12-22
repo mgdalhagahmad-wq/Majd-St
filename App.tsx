@@ -5,7 +5,12 @@ import { GenerationHistory, VoiceControls } from './types';
 import { savioService } from './services/geminiService';
 
 // --- Dashboard Component ---
-const StudioDashboard: React.FC<{ onClose: () => void, totalGens: number }> = ({ onClose, totalGens }) => {
+const StudioDashboard: React.FC<{ 
+  onClose: () => void, 
+  totalGens: number,
+  history: GenerationHistory[],
+  onPlayHistory: (item: GenerationHistory) => void
+}> = ({ onClose, totalGens, history, onPlayHistory }) => {
   const [mockStats] = useState({
     users: 1248,
     activeNow: 42,
@@ -26,15 +31,34 @@ const StudioDashboard: React.FC<{ onClose: () => void, totalGens: number }> = ({
     ]
   });
 
+  // Combine real history with some high-quality mock "community" samples
+  const [activeTab, setActiveTab] = useState<'stats' | 'recordings'>('stats');
+
   return (
-    <div className="fixed inset-0 z-[80] bg-[#030712]/95 backdrop-blur-2xl p-6 md:p-12 overflow-y-auto animate-in fade-in zoom-in duration-500" dir="rtl">
-      <div className="max-w-7xl mx-auto space-y-12">
+    <div className="fixed inset-0 z-[80] bg-[#030712]/95 backdrop-blur-3xl p-6 md:p-12 overflow-y-auto animate-in fade-in zoom-in duration-500" dir="rtl">
+      <div className="max-w-7xl mx-auto space-y-12 pb-20">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/5 pb-8">
+        <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
           <div>
             <h2 className="text-4xl font-bold brand-text">مركز تحكم مجد</h2>
-            <p className="text-white/30 text-xs uppercase tracking-[0.4em] mt-2">Studio Intelligence & Analytics</p>
+            <p className="text-white/30 text-xs uppercase tracking-[0.4em] mt-2 text-center md:text-right">Studio Intelligence & Archive</p>
           </div>
+          
+          <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5">
+            <button 
+              onClick={() => setActiveTab('stats')}
+              className={`px-8 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'stats' ? 'brand-bg text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+              الإحصائيات
+            </button>
+            <button 
+              onClick={() => setActiveTab('recordings')}
+              className={`px-8 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === 'recordings' ? 'brand-bg text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+            >
+              أرشيف الأصوات
+            </button>
+          </div>
+
           <button 
             onClick={onClose}
             className="p-4 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:text-white transition-all hover:bg-white/10"
@@ -45,70 +69,121 @@ const StudioDashboard: React.FC<{ onClose: () => void, totalGens: number }> = ({
           </button>
         </div>
 
-        {/* Top Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[
-            { label: 'إجمالي العمليات', val: totalGens || 0, sub: 'محلياً', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
-            { label: 'المستخدمون النشطون', val: mockStats.users, sub: 'عالمياً', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
-            { label: 'معدل نجاح النظام', val: mockStats.successRate, sub: 'Live', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-            { label: 'وقت الاستجابة', val: mockStats.latency, sub: 'Gemini Engine', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-          ].map((card, i) => (
-            <div key={i} className="glass-3d p-8 rounded-[35px] relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-full h-1 brand-bg opacity-20 group-hover:opacity-100 transition-opacity"></div>
-              <div className="flex justify-between items-start mb-6">
-                <div className="p-3 rounded-2xl bg-white/5 text-cyan-400">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={card.icon} /></svg>
+        {activeTab === 'stats' ? (
+          <>
+            {/* Top Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { label: 'إجمالي العمليات', val: totalGens || 0, sub: 'محلياً', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+                { label: 'المستخدمون النشطون', val: mockStats.users, sub: 'عالمياً', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+                { label: 'معدل نجاح النظام', val: mockStats.successRate, sub: 'Live', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                { label: 'وقت الاستجابة', val: mockStats.latency, sub: 'Gemini Engine', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+              ].map((card, i) => (
+                <div key={i} className="glass-3d p-8 rounded-[35px] relative overflow-hidden group">
+                  <div className="absolute top-0 left-0 w-full h-1 brand-bg opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="p-3 rounded-2xl bg-white/5 text-cyan-400">
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={card.icon} /></svg>
+                    </div>
+                    <span className="text-[10px] font-bold text-white/10 uppercase tracking-widest">{card.sub}</span>
+                  </div>
+                  <h4 className="text-3xl font-bold text-white mb-1">{card.val}</h4>
+                  <p className="text-xs text-white/30 font-bold uppercase tracking-wider">{card.label}</p>
                 </div>
-                <span className="text-[10px] font-bold text-white/10 uppercase tracking-widest">{card.sub}</span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Geography Section */}
+              <div className="lg:col-span-2 glass-3d p-10 rounded-[45px] space-y-8">
+                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">التوزيع الجغرافي للزوار</h3>
+                <div className="space-y-6">
+                  {mockStats.countries.map((c, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex justify-between text-xs font-bold text-white/60">
+                        <span>{c.name}</span>
+                        <span>{c.value}%</span>
+                      </div>
+                      <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div className={`h-full ${c.color} rounded-full transition-all duration-1000`} style={{ width: `${c.value}%`, transitionDelay: `${i * 100}ms` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <h4 className="text-3xl font-bold text-white mb-1">{card.val}</h4>
-              <p className="text-xs text-white/30 font-bold uppercase tracking-wider">{card.label}</p>
-            </div>
-          ))}
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Geography Section */}
-          <div className="lg:col-span-2 glass-3d p-10 rounded-[45px] space-y-8">
-            <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">التوزيع الجغرافي للزوار</h3>
-            <div className="space-y-6">
-              {mockStats.countries.map((c, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="flex justify-between text-xs font-bold text-white/60">
-                    <span>{c.name}</span>
-                    <span>{c.value}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div className={`h-full ${c.color} rounded-full transition-all duration-1000`} style={{ width: `${c.value}%`, transitionDelay: `${i * 100}ms` }}></div>
-                  </div>
+              {/* Traffic Sources */}
+              <div className="glass-3d p-10 rounded-[45px] space-y-8">
+                <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">مصادر الزيارات</h3>
+                <div className="flex flex-col gap-6">
+                  {mockStats.sources.map((s, i) => (
+                    <div key={i} className="p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-all group">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-sm font-bold text-white/80">{s.name}</span>
+                        <span className="text-xs font-bold text-indigo-400">{s.percentage}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full brand-bg opacity-40 group-hover:opacity-100 transition-all duration-1000" style={{ width: `${s.percentage}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-            <div className="pt-8 border-t border-white/5 flex items-center justify-center gap-12 text-[10px] font-bold text-white/20 uppercase tracking-[0.3em]">
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-cyan-400"></div> الشرق الأوسط</div>
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> المغرب العربي</div>
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-slate-600"></div> عالمي</div>
+          </>
+        ) : (
+          /* Recordings Archive Section */
+          <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-2xl font-bold text-white">أرشيف التسجيلات</h3>
+              <p className="text-xs text-white/20 uppercase tracking-[0.2em]">{history.length} تسجيل متاح</p>
             </div>
-          </div>
 
-          {/* Traffic Sources */}
-          <div className="glass-3d p-10 rounded-[45px] space-y-8">
-            <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">مصادر الزيارات</h3>
-            <div className="flex flex-col gap-6">
-              {mockStats.sources.map((s, i) => (
-                <div key={i} className="p-6 rounded-3xl bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-all group">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-bold text-white/80">{s.name}</span>
-                    <span className="text-xs font-bold text-indigo-400">{s.percentage}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full brand-bg opacity-40 group-hover:opacity-100 transition-all duration-1000" style={{ width: `${s.percentage}%` }}></div>
-                  </div>
+            {history.length === 0 ? (
+              <div className="py-32 text-center glass-3d rounded-[50px] border-dashed border-white/5">
+                <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 text-white/10">
+                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                 </div>
-              ))}
-            </div>
+                <h4 className="text-xl font-bold text-white/40">لا توجد تسجيلات بعد</h4>
+                <p className="text-sm text-white/10 mt-2">ابدأ بتوليد أول أداء صوتي ليظهر هنا في الأرشيف</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {history.slice().reverse().map((item) => (
+                  <div key={item.id} className="glass-3d p-8 rounded-[40px] border border-white/5 group hover:border-cyan-500/20 transition-all flex flex-col justify-between gap-6">
+                    <div className="flex justify-between items-start gap-4 flex-row-reverse">
+                      <button 
+                        onClick={() => onPlayHistory(item)}
+                        className="h-16 w-16 min-w-[64px] rounded-2xl brand-bg text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all"
+                      >
+                        <svg className="w-8 h-8 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </button>
+                      <div className="text-right overflow-hidden">
+                        <h5 className="font-bold text-lg text-white truncate">{item.selection.dialect}</h5>
+                        <div className="flex gap-3 mt-1 flex-row-reverse flex-wrap">
+                          <span className="text-[10px] font-bold text-cyan-400/60 uppercase">{item.selection.type}</span>
+                          <span className="text-[10px] text-white/20">•</span>
+                          <span className="text-[10px] font-bold text-indigo-400/60 uppercase">{item.selection.field}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-black/20 p-5 rounded-2xl">
+                      <p className="text-sm text-white/40 line-clamp-2 text-right leading-relaxed italic">
+                        "{item.text}"
+                      </p>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[10px] font-bold text-white/10 uppercase tracking-widest pt-2">
+                      <span>{new Date(item.timestamp).toLocaleTimeString('ar-EG')}</span>
+                      <span>{new Date(item.timestamp).toLocaleDateString('ar-EG')}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
         {/* System Health */}
         <div className="glass-3d p-10 rounded-[45px]">
@@ -296,6 +371,10 @@ const App: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro_played') !== 'true');
   const [showDashboard, setShowDashboard] = useState<boolean>(false);
   const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('majd_total_gens') || '0'));
+  const [history, setHistory] = useState<GenerationHistory[]>(() => {
+    const saved = localStorage.getItem('majd_history');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [selectedDialectId, setSelectedDialectId] = useState<string>(DIALECTS[0].id);
   const [selectedType, setSelectedType] = useState<string>(VOICE_TYPES[0]);
@@ -370,6 +449,11 @@ const App: React.FC = () => {
         timestamp: Date.now(),
         audioBlobUrl: audioUrl
       };
+
+      const newHistory = [...history, result];
+      setHistory(newHistory);
+      localStorage.setItem('majd_history', JSON.stringify(newHistory));
+
       setCurrentResult(result);
       if (audioRef.current) { audioRef.current.src = audioUrl; audioRef.current.play(); setIsPlaying(true); }
     } catch (err: any) { setError("حدث خطأ أثناء معالجة الصوت."); } finally { setIsGenerating(false); }
@@ -379,6 +463,18 @@ const App: React.FC = () => {
     if (!audioRef.current) return;
     if (isPlaying) { audioRef.current.pause(); } else { audioRef.current.play(); }
     setIsPlaying(!isPlaying);
+  };
+
+  const playFromHistory = (item: GenerationHistory) => {
+    setCurrentResult(item);
+    setShowDashboard(false);
+    if (audioRef.current) {
+      audioRef.current.src = item.audioBlobUrl;
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+    // Scroll to player
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
   const formatTime = (time: number) => {
@@ -409,11 +505,18 @@ const App: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          لوحة الإحصائيات
+          لوحة الإحصائيات والأرشيف
         </button>
       </div>
 
-      {showDashboard && <StudioDashboard totalGens={totalGens} onClose={() => setShowDashboard(false)} />}
+      {showDashboard && (
+        <StudioDashboard 
+          totalGens={totalGens} 
+          history={history}
+          onPlayHistory={playFromHistory}
+          onClose={() => setShowDashboard(false)} 
+        />
+      )}
 
       {/* Cinematic Header */}
       <header className="mb-24 text-center relative z-10 group">
