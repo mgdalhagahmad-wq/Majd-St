@@ -31,11 +31,70 @@ const StudioDashboard: React.FC<{
     ]
   });
 
-  // Combine real history with some high-quality mock "community" samples
   const [activeTab, setActiveTab] = useState<'stats' | 'recordings'>('stats');
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewProgress, setPreviewProgress] = useState(0);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    const updateProgress = () => {
+      if (audio.duration) {
+        setPreviewProgress((audio.currentTime / audio.duration) * 100);
+      }
+    };
+    audio.addEventListener('timeupdate', updateProgress);
+    return () => audio.removeEventListener('timeupdate', updateProgress);
+  }, []);
+
+  const handleShare = async (item: GenerationHistory) => {
+    const shareText = `استمع إلى هذا الأداء الصوتي من "مجد استوديو":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة Majd Studio VO`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'مشاركة تسجيل من مجد استوديو',
+          text: shareText,
+          url: window.location.href
+        });
+      } catch (err) {
+        console.log('Share cancelled or failed');
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert('تم نسخ تفاصيل التسجيل للمشاركة!');
+      } catch (err) {
+        alert('فشل في النسخ، يرجى المحاولة يدوياً.');
+      }
+    }
+  };
+
+  const startPreview = (item: GenerationHistory) => {
+    setPreviewId(item.id);
+    setPreviewProgress(0);
+    if (previewAudioRef.current) {
+      previewAudioRef.current.src = item.audioBlobUrl;
+      previewAudioRef.current.currentTime = 0;
+      previewAudioRef.current.play().catch(e => console.log("Preview play blocked"));
+    }
+  };
+
+  const stopPreview = () => {
+    setPreviewId(null);
+    setPreviewProgress(0);
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      previewAudioRef.current.currentTime = 0;
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-[#030712]/95 backdrop-blur-3xl p-6 md:p-12 overflow-y-auto animate-in fade-in zoom-in duration-500" dir="rtl">
+    <div className="fixed inset-0 z-[80] bg-[#030712]/95 backdrop-blur-2xl p-6 md:p-12 overflow-y-auto animate-in fade-in zoom-in duration-500" dir="rtl">
+      {/* Hidden Preview Audio Engine */}
+      <audio ref={previewAudioRef} className="hidden" />
+
       <div className="max-w-7xl mx-auto space-y-12 pb-20">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
@@ -94,7 +153,6 @@ const StudioDashboard: React.FC<{
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Geography Section */}
               <div className="lg:col-span-2 glass-3d p-10 rounded-[45px] space-y-8">
                 <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">التوزيع الجغرافي للزوار</h3>
                 <div className="space-y-6">
@@ -112,7 +170,6 @@ const StudioDashboard: React.FC<{
                 </div>
               </div>
 
-              {/* Traffic Sources */}
               <div className="glass-3d p-10 rounded-[45px] space-y-8">
                 <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em]">مصادر الزيارات</h3>
                 <div className="flex flex-col gap-6">
@@ -135,7 +192,10 @@ const StudioDashboard: React.FC<{
           /* Recordings Archive Section */
           <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="text-2xl font-bold text-white">أرشيف التسجيلات</h3>
+              <div>
+                <h3 className="text-2xl font-bold text-white">أرشيف التسجيلات</h3>
+                <p className="text-[9px] text-cyan-400 font-bold uppercase tracking-[0.2em] mt-1">تلميح: مرر الماوس فوق التسجيل للمعاينة السريعة</p>
+              </div>
               <p className="text-xs text-white/20 uppercase tracking-[0.2em]">{history.length} تسجيل متاح</p>
             </div>
 
@@ -148,35 +208,76 @@ const StudioDashboard: React.FC<{
                 <p className="text-sm text-white/10 mt-2">ابدأ بتوليد أول أداء صوتي ليظهر هنا في الأرشيف</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {history.slice().reverse().map((item) => (
-                  <div key={item.id} className="glass-3d p-8 rounded-[40px] border border-white/5 group hover:border-cyan-500/20 transition-all flex flex-col justify-between gap-6">
-                    <div className="flex justify-between items-start gap-4 flex-row-reverse">
-                      <button 
-                        onClick={() => onPlayHistory(item)}
-                        className="h-16 w-16 min-w-[64px] rounded-2xl brand-bg text-white flex items-center justify-center shadow-xl hover:scale-110 active:scale-95 transition-all"
-                      >
-                        <svg className="w-8 h-8 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      </button>
-                      <div className="text-right overflow-hidden">
-                        <h5 className="font-bold text-lg text-white truncate">{item.selection.dialect}</h5>
+                  <div 
+                    key={item.id} 
+                    onMouseEnter={() => startPreview(item)}
+                    onMouseLeave={() => stopPreview()}
+                    className={`glass-3d p-8 rounded-[40px] border border-white/5 group transition-all flex flex-col justify-between gap-6 relative overflow-hidden ${previewId === item.id ? 'border-cyan-500/40 ring-1 ring-cyan-500/20 translate-y-[-4px]' : 'hover:border-white/20'}`}
+                  >
+                    {/* Hover Progress Indicator */}
+                    <div 
+                      className="absolute bottom-0 right-0 h-1 bg-cyan-400 transition-all duration-100 ease-out origin-right" 
+                      style={{ width: previewId === item.id ? `${previewProgress}%` : '0%' }}
+                    />
+
+                    <div className="flex justify-between items-start gap-4 flex-row-reverse z-10">
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => handleShare(item)}
+                          className="h-14 w-14 rounded-xl bg-white/5 border border-white/10 text-white/30 flex items-center justify-center hover:bg-cyan-500/10 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
+                          title="مشاركة"
+                        >
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                          </svg>
+                        </button>
+                        <button 
+                          onClick={() => onPlayHistory(item)}
+                          className={`h-14 w-14 rounded-xl flex items-center justify-center shadow-xl transition-all ${previewId === item.id ? 'bg-cyan-400 text-black scale-110' : 'brand-bg text-white hover:scale-105'}`}
+                          title="تشغيل كامل"
+                        >
+                          <svg className="w-7 h-7 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </button>
+                      </div>
+                      
+                      <div className="text-right overflow-hidden flex-1">
+                        <div className="flex items-center justify-end gap-2 mb-1">
+                          {previewId === item.id && (
+                            <div className="flex gap-0.5 items-end h-3 animate-pulse">
+                              <div className="w-0.5 h-1 bg-cyan-400 animate-[pulse_0.5s_infinite]"></div>
+                              <div className="w-0.5 h-3 bg-cyan-400 animate-[pulse_0.7s_infinite]"></div>
+                              <div className="w-0.5 h-2 bg-cyan-400 animate-[pulse_0.4s_infinite]"></div>
+                            </div>
+                          )}
+                          <h5 className={`font-bold text-lg truncate transition-colors ${previewId === item.id ? 'text-cyan-400' : 'text-white'}`}>
+                            {item.selection.dialect}
+                          </h5>
+                        </div>
                         <div className="flex gap-3 mt-1 flex-row-reverse flex-wrap">
-                          <span className="text-[10px] font-bold text-cyan-400/60 uppercase">{item.selection.type}</span>
+                          <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-cyan-400/80' : 'text-cyan-400/60'}`}>{item.selection.type}</span>
                           <span className="text-[10px] text-white/20">•</span>
-                          <span className="text-[10px] font-bold text-indigo-400/60 uppercase">{item.selection.field}</span>
+                          <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-indigo-400' : 'text-indigo-400/60'}`}>{item.selection.field}</span>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="bg-black/20 p-5 rounded-2xl">
-                      <p className="text-sm text-white/40 line-clamp-2 text-right leading-relaxed italic">
+                    <div className={`p-5 rounded-2xl transition-all duration-500 ${previewId === item.id ? 'bg-cyan-500/5' : 'bg-black/20'}`}>
+                      <p className={`text-sm text-right leading-relaxed italic line-clamp-2 transition-all duration-500 ${previewId === item.id ? 'text-white/80 scale-[1.01]' : 'text-white/40'}`}>
                         "{item.text}"
                       </p>
                     </div>
 
                     <div className="flex justify-between items-center text-[10px] font-bold text-white/10 uppercase tracking-widest pt-2">
-                      <span>{new Date(item.timestamp).toLocaleTimeString('ar-EG')}</span>
-                      <span>{new Date(item.timestamp).toLocaleDateString('ar-EG')}</span>
+                      <div className={`flex items-center gap-2 transition-opacity duration-300 ${previewId === item.id ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></div>
+                        <span className="text-cyan-400">معاينة مباشرة</span>
+                      </div>
+                      <div className="flex gap-4">
+                        <span>{new Date(item.timestamp).toLocaleTimeString('ar-EG')}</span>
+                        <span>{new Date(item.timestamp).toLocaleDateString('ar-EG')}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -473,7 +574,6 @@ const App: React.FC = () => {
       audioRef.current.play();
       setIsPlaying(true);
     }
-    // Scroll to player
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
   };
 
@@ -489,13 +589,11 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center py-24 px-6 font-arabic overflow-hidden relative animate-in fade-in duration-1000" dir="rtl">
       
-      {/* Background Effects */}
       <div className="bg-light-blob top-[10%] left-[5%]"></div>
       <div className="bg-light-blob bottom-[10%] right-[5%]" style={{ animationDelay: '-6s', background: 'radial-gradient(circle, rgba(34, 211, 238, 0.05) 0%, transparent 70%)' }}></div>
       <FloatingMic />
       <FloatingHeadphones />
 
-      {/* Control Navigation */}
       <div className="absolute top-8 left-8 z-50">
         <button 
           onClick={() => setShowDashboard(true)}
@@ -518,7 +616,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Cinematic Header */}
       <header className="mb-24 text-center relative z-10 group">
         <div className="flex items-center justify-center gap-6 mb-8">
           <div className="h-20 w-20 brand-bg rounded-[26px] flex items-center justify-center shadow-2xl rotate-6 group-hover:rotate-0 transition-all duration-700">
@@ -534,7 +631,6 @@ const App: React.FC = () => {
       </header>
 
       <div className="w-full max-w-5xl space-y-24 relative z-10">
-        {/* Step 1: Dialect */}
         <section className="glass-3d p-16 rounded-[50px] animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">١. محرك اختيار اللهجات</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -550,7 +646,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Step 2: Personality */}
         <section className="glass-3d p-16 rounded-[50px] space-y-20 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
           <SelectionBlock title="٢. الهوية العمرية والنمط" options={VOICE_TYPES} current={selectedType} set={setSelectedType} />
           <div className="flex flex-col items-center gap-10">
@@ -576,7 +671,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Step 3: Controls */}
         <section className="glass-3d p-16 rounded-[50px] animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-300">
           <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">٣. غرفة المعالجة والهندسة</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
@@ -586,7 +680,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Step 4: Content */}
         <section className="glass-3d p-16 rounded-[50px] space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-400">
           <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center">٤. صياغة المخطوطة الإبداعية</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-14">
@@ -606,7 +699,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Final Trigger */}
         <section className="flex justify-center pb-16 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
           <button onClick={handleGenerate} disabled={isGenerating || (!processedText.trim() && !inputText.trim())} className={`w-full max-w-3xl py-12 rounded-full font-bold text-2xl flex items-center justify-center gap-8 transition-all relative overflow-hidden shadow-[0_30px_60px_-15px_rgba(99,102,241,0.5)] group ${isGenerating || (!processedText.trim() && !inputText.trim()) ? 'bg-white/5 text-white/10 cursor-not-allowed grayscale' : 'brand-bg text-white hover:scale-105'}`}>
             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity"></div>
@@ -614,7 +706,6 @@ const App: React.FC = () => {
           </button>
         </section>
 
-        {/* Output Console */}
         {(currentResult || isGenerating || error) && (
           <section className="glass-3d p-16 rounded-[65px] border-cyan-400/20 space-y-14 animate-in zoom-in duration-800 shadow-3xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-40"></div>
