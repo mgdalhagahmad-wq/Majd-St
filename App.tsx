@@ -49,12 +49,12 @@ const StudioDashboard: React.FC<{
   }, []);
 
   const handleShare = async (item: GenerationHistory) => {
-    const shareText = `استمع إلى هذا الأداء الصوتي من "سافيو استوديو":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة SAVIO STUDIO VO`;
+    const shareText = `استمع إلى هذا الأداء الصوتي من "استوديو مجد":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة MAJD STUDIO VO`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'مشاركة تسجيل من سافيو استوديو',
+          title: 'مشاركة تسجيل من استوديو مجد',
           text: shareText,
           url: window.location.href
         });
@@ -99,7 +99,7 @@ const StudioDashboard: React.FC<{
         {/* Header */}
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
           <div>
-            <h2 className="text-4xl font-bold brand-text">مركز تحكم سافيو</h2>
+            <h2 className="text-4xl font-bold brand-text">مركز تحكم مجد</h2>
             <p className="text-white/30 text-xs uppercase tracking-[0.4em] mt-2 text-center md:text-right">Studio Intelligence & Archive</p>
           </div>
           
@@ -356,12 +356,12 @@ const CinematicIntro: React.FC<{ onComplete: () => void }> = ({ onComplete }) =>
       </div>
       <div className="relative z-10 text-center scale-up">
         <div className={`${stage === 'titles' ? 'animate-cinematic' : 'opacity-0 transition-opacity duration-1000'}`}>
-          <h2 className="android-tech-logo text-7xl md:text-9xl">SAVIO</h2>
+          <h2 className="android-tech-logo text-7xl md:text-9xl">MAJD</h2>
           <div className="android-subtitle text-sm md:text-base">STUDIO VO</div>
         </div>
         <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1200 ${stage === 'reveal' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
           <div className="relative flex flex-col items-center">
-            <h2 className="android-tech-logo text-6xl md:text-8xl">SAVIO</h2>
+            <h2 className="android-tech-logo text-6xl md:text-8xl">MAJD</h2>
             <div className="android-subtitle text-xs md:text-sm">STUDIO VO</div>
             <div className="mt-16 flex gap-1.5 h-16 justify-center">
               {[...Array(25)].map((_, i) => (
@@ -465,11 +465,11 @@ const ControlGroup: React.FC<{ id: string; title: string; options: { label: stri
 );
 
 const App: React.FC = () => {
-  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('savio_intro_played') !== 'true');
+  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro_played') !== 'true');
   const [showDashboard, setShowDashboard] = useState<boolean>(false);
-  const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('savio_total_gens') || '0'));
+  const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('majd_total_gens') || '0'));
   const [history, setHistory] = useState<GenerationHistory[]>(() => {
-    const saved = localStorage.getItem('savio_history');
+    const saved = localStorage.getItem('majd_history');
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -537,7 +537,7 @@ const App: React.FC = () => {
       
       const newTotal = totalGens + 1;
       setTotalGens(newTotal);
-      localStorage.setItem('savio_total_gens', newTotal.toString());
+      localStorage.setItem('majd_total_gens', newTotal.toString());
 
       const result: GenerationHistory = {
         id: Math.random().toString(36).substr(2, 9),
@@ -549,7 +549,7 @@ const App: React.FC = () => {
 
       const newHistory = [...history, result];
       setHistory(newHistory);
-      localStorage.setItem('savio_history', JSON.stringify(newHistory));
+      localStorage.setItem('majd_history', JSON.stringify(newHistory));
 
       setCurrentResult(result);
       if (audioRef.current) { audioRef.current.src = audioUrl; audioRef.current.play(); setIsPlaying(true); }
@@ -580,7 +580,7 @@ const App: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (showIntro) return <CinematicIntro onComplete={() => { sessionStorage.setItem('savio_intro_played', 'true'); setShowIntro(false); }} />;
+  if (showIntro) return <CinematicIntro onComplete={() => { sessionStorage.setItem('majd_intro_played', 'true'); setShowIntro(false); }} />;
 
   return (
     <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center py-24 px-6 font-arabic overflow-hidden relative animate-in fade-in duration-1000" dir="rtl">
@@ -619,7 +619,7 @@ const App: React.FC = () => {
             </svg>
           </div>
           <div>
-            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight">سافيو استوديو</h1>
+            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight">استوديو مجد</h1>
             <p className="text-white/40 text-xs uppercase tracking-[0.7em] font-semibold mt-3">Elite Arabic Voice Lab</p>
           </div>
         </div>
@@ -730,7 +730,7 @@ const App: React.FC = () => {
                       <h4 className="font-bold text-4xl text-white mb-3">{currentResult.selection.dialect}</h4>
                       <p className="text-[11px] text-cyan-400 font-bold tracking-[0.2em] uppercase">{currentResult.selection.type} — {currentResult.selection.field}</p>
                     </div>
-                    <button onClick={() => { const a = document.createElement('a'); a.href = currentResult.audioBlobUrl; a.download = `SAVIO_VO_${currentResult.id}.wav`; a.click(); }} className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-cyan-400/50 text-white/40 hover:text-cyan-400 transition-all shadow-xl"><svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                    <button onClick={() => { const a = document.createElement('a'); a.href = currentResult.audioBlobUrl; a.download = `MAJD_VO_${currentResult.id}.wav`; a.click(); }} className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-cyan-400/50 text-white/40 hover:text-cyan-400 transition-all shadow-xl"><svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
                   </div>
                   <div className="flex flex-col md:flex-row items-center gap-14 flex-row-reverse">
                     <div className="flex items-center gap-8 flex-row-reverse">
@@ -753,8 +753,8 @@ const App: React.FC = () => {
 
       <footer className="mt-48 text-center relative z-10">
         <div className="h-px w-56 bg-gradient-to-r from-transparent via-white/10 to-transparent mx-auto mb-12"></div>
-        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; ٢٠٢٤ سافيو استوديو</p>
-        <p className="text-[9px] text-white/10 mt-3 tracking-[0.4em] uppercase">Powered by SAVIO Engine & Gemini AI</p>
+        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; ٢٠٢٤ استوديو مجد</p>
+        <p className="text-[9px] text-white/10 mt-3 tracking-[0.4em] uppercase">Powered by MAJD Engine & Gemini AI</p>
       </footer>
       <audio ref={audioRef} className="hidden" />
     </div>
