@@ -49,12 +49,12 @@ const StudioDashboard: React.FC<{
   }, []);
 
   const handleShare = async (item: GenerationHistory) => {
-    const shareText = `استمع إلى هذا الأداء الصوتي من "مجد استوديو":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة Majd Studio VO`;
+    const shareText = `استمع إلى هذا الأداء الصوتي من "سافيو استوديو":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة SAVIO STUDIO VO`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'مشاركة تسجيل من مجد استوديو',
+          title: 'مشاركة تسجيل من سافيو استوديو',
           text: shareText,
           url: window.location.href
         });
@@ -99,7 +99,7 @@ const StudioDashboard: React.FC<{
         {/* Header */}
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
           <div>
-            <h2 className="text-4xl font-bold brand-text">مركز تحكم مجد</h2>
+            <h2 className="text-4xl font-bold brand-text">مركز تحكم سافيو</h2>
             <p className="text-white/30 text-xs uppercase tracking-[0.4em] mt-2 text-center md:text-right">Studio Intelligence & Archive</p>
           </div>
           
@@ -130,7 +130,6 @@ const StudioDashboard: React.FC<{
 
         {activeTab === 'stats' ? (
           <>
-            {/* Top Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { label: 'إجمالي العمليات', val: totalGens || 0, sub: 'محلياً', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
@@ -189,7 +188,6 @@ const StudioDashboard: React.FC<{
             </div>
           </>
         ) : (
-          /* Recordings Archive Section */
           <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -216,7 +214,6 @@ const StudioDashboard: React.FC<{
                     onMouseLeave={() => stopPreview()}
                     className={`glass-3d p-8 rounded-[40px] border border-white/5 group transition-all flex flex-col justify-between gap-6 relative overflow-hidden ${previewId === item.id ? 'border-cyan-500/40 ring-1 ring-cyan-500/20 translate-y-[-4px]' : 'hover:border-white/20'}`}
                   >
-                    {/* Hover Progress Indicator */}
                     <div 
                       className="absolute bottom-0 right-0 h-1 bg-cyan-400 transition-all duration-100 ease-out origin-right" 
                       style={{ width: previewId === item.id ? `${previewProgress}%` : '0%' }}
@@ -286,7 +283,6 @@ const StudioDashboard: React.FC<{
           </div>
         )}
 
-        {/* System Health */}
         <div className="glass-3d p-10 rounded-[45px]">
           <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em] mb-10 text-center">حالة المحرك والنظام (Engine Health)</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -360,12 +356,12 @@ const CinematicIntro: React.FC<{ onComplete: () => void }> = ({ onComplete }) =>
       </div>
       <div className="relative z-10 text-center scale-up">
         <div className={`${stage === 'titles' ? 'animate-cinematic' : 'opacity-0 transition-opacity duration-1000'}`}>
-          <h2 className="android-tech-logo text-7xl md:text-9xl">MAJD</h2>
+          <h2 className="android-tech-logo text-7xl md:text-9xl">SAVIO</h2>
           <div className="android-subtitle text-sm md:text-base">STUDIO VO</div>
         </div>
         <div className={`absolute inset-0 flex flex-col items-center justify-center transition-all duration-1200 ${stage === 'reveal' ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
           <div className="relative flex flex-col items-center">
-            <h2 className="android-tech-logo text-6xl md:text-8xl">MAJD</h2>
+            <h2 className="android-tech-logo text-6xl md:text-8xl">SAVIO</h2>
             <div className="android-subtitle text-xs md:text-sm">STUDIO VO</div>
             <div className="mt-16 flex gap-1.5 h-16 justify-center">
               {[...Array(25)].map((_, i) => (
@@ -469,11 +465,11 @@ const ControlGroup: React.FC<{ id: string; title: string; options: { label: stri
 );
 
 const App: React.FC = () => {
-  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro_played') !== 'true');
+  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('savio_intro_played') !== 'true');
   const [showDashboard, setShowDashboard] = useState<boolean>(false);
-  const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('majd_total_gens') || '0'));
+  const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('savio_total_gens') || '0'));
   const [history, setHistory] = useState<GenerationHistory[]>(() => {
-    const saved = localStorage.getItem('majd_history');
+    const saved = localStorage.getItem('savio_history');
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -541,7 +537,7 @@ const App: React.FC = () => {
       
       const newTotal = totalGens + 1;
       setTotalGens(newTotal);
-      localStorage.setItem('majd_total_gens', newTotal.toString());
+      localStorage.setItem('savio_total_gens', newTotal.toString());
 
       const result: GenerationHistory = {
         id: Math.random().toString(36).substr(2, 9),
@@ -553,7 +549,7 @@ const App: React.FC = () => {
 
       const newHistory = [...history, result];
       setHistory(newHistory);
-      localStorage.setItem('majd_history', JSON.stringify(newHistory));
+      localStorage.setItem('savio_history', JSON.stringify(newHistory));
 
       setCurrentResult(result);
       if (audioRef.current) { audioRef.current.src = audioUrl; audioRef.current.play(); setIsPlaying(true); }
@@ -584,11 +580,10 @@ const App: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (showIntro) return <CinematicIntro onComplete={() => { sessionStorage.setItem('majd_intro_played', 'true'); setShowIntro(false); }} />;
+  if (showIntro) return <CinematicIntro onComplete={() => { sessionStorage.setItem('savio_intro_played', 'true'); setShowIntro(false); }} />;
 
   return (
     <div className="min-h-screen bg-[#030712] text-white flex flex-col items-center py-24 px-6 font-arabic overflow-hidden relative animate-in fade-in duration-1000" dir="rtl">
-      
       <div className="bg-light-blob top-[10%] left-[5%]"></div>
       <div className="bg-light-blob bottom-[10%] right-[5%]" style={{ animationDelay: '-6s', background: 'radial-gradient(circle, rgba(34, 211, 238, 0.05) 0%, transparent 70%)' }}></div>
       <FloatingMic />
@@ -600,7 +595,7 @@ const App: React.FC = () => {
           className="flex items-center gap-4 px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs uppercase tracking-widest hover:bg-cyan-500/10 transition-all shadow-2xl group"
         >
           <svg className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           لوحة الإحصائيات والأرشيف
@@ -624,7 +619,7 @@ const App: React.FC = () => {
             </svg>
           </div>
           <div>
-            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight">مجد استوديو</h1>
+            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight">سافيو استوديو</h1>
             <p className="text-white/40 text-xs uppercase tracking-[0.7em] font-semibold mt-3">Elite Arabic Voice Lab</p>
           </div>
         </div>
@@ -735,7 +730,7 @@ const App: React.FC = () => {
                       <h4 className="font-bold text-4xl text-white mb-3">{currentResult.selection.dialect}</h4>
                       <p className="text-[11px] text-cyan-400 font-bold tracking-[0.2em] uppercase">{currentResult.selection.type} — {currentResult.selection.field}</p>
                     </div>
-                    <button onClick={() => { const a = document.createElement('a'); a.href = currentResult.audioBlobUrl; a.download = `MAJD_VO_${currentResult.id}.wav`; a.click(); }} className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-cyan-400/50 text-white/40 hover:text-cyan-400 transition-all shadow-xl"><svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
+                    <button onClick={() => { const a = document.createElement('a'); a.href = currentResult.audioBlobUrl; a.download = `SAVIO_VO_${currentResult.id}.wav`; a.click(); }} className="p-6 rounded-3xl bg-white/5 border border-white/10 hover:border-cyan-400/50 text-white/40 hover:text-cyan-400 transition-all shadow-xl"><svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button>
                   </div>
                   <div className="flex flex-col md:flex-row items-center gap-14 flex-row-reverse">
                     <div className="flex items-center gap-8 flex-row-reverse">
@@ -758,8 +753,8 @@ const App: React.FC = () => {
 
       <footer className="mt-48 text-center relative z-10">
         <div className="h-px w-56 bg-gradient-to-r from-transparent via-white/10 to-transparent mx-auto mb-12"></div>
-        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; ٢٠٢٤ مجد استوديو</p>
-        <p className="text-[9px] text-white/10 mt-3 tracking-[0.4em] uppercase">Powered by Majd Engine & Gemini AI</p>
+        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; ٢٠٢٤ سافيو استوديو</p>
+        <p className="text-[9px] text-white/10 mt-3 tracking-[0.4em] uppercase">Powered by SAVIO Engine & Gemini AI</p>
       </footer>
       <audio ref={audioRef} className="hidden" />
     </div>

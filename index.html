@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>استوديو مجد VO | منصة التعليق الصوتي العربي الاحترافي</title>
+    <title>SAVIO STUDIO VO | منصة التعليق الصوتي العربي الاحترافي</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,6 @@
       .font-arabic {
         font-family: 'Tajawal', 'Amiri', serif;
       }
-      /* 3D Glassmorphism */
       .glass-3d {
         background: var(--glass-bg);
         backdrop-filter: blur(30px);
@@ -46,7 +45,6 @@
           0 40px 70px -15px rgba(0, 0, 0, 0.8),
           inset 0 1px 1px rgba(255, 255, 255, 0.1);
       }
-      /* Brand Fluid Text & BG */
       .brand-text {
         background: linear-gradient(135deg, var(--brand-secondary) 0%, var(--brand-primary) 100%);
         -webkit-background-clip: text;
@@ -57,7 +55,6 @@
         background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
         box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.5);
       }
-      /* Android Tech Style Intro */
       .android-tech-logo {
         font-family: 'Montserrat', sans-serif;
         font-weight: 900;
@@ -67,8 +64,7 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         animation: brand-pulse 4s ease-in-out infinite;
-        text-shadow: 
-          0 10px 30px rgba(0,0,0,0.8);
+        text-shadow: 0 10px 30px rgba(0,0,0,0.8);
       }
       @keyframes brand-pulse {
         0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.5)); }
@@ -84,7 +80,6 @@
         text-shadow: 0 0 25px rgba(34, 211, 238, 0.6);
         opacity: 0.8;
       }
-      /* Cinematic Intro Specifics */
       @keyframes cinematicZoom {
         0% { transform: scale(0.8) translateZ(-300px); opacity: 0; }
         25% { opacity: 1; }
@@ -93,7 +88,6 @@
       .animate-cinematic {
         animation: cinematicZoom 5.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       }
-      /* Particles */
       .particle {
         position: absolute;
         background: radial-gradient(circle, var(--brand-secondary) 0%, transparent 80%);
@@ -101,7 +95,6 @@
         opacity: 0.2;
         pointer-events: none;
       }
-      /* Fog Layer */
       .fog-layer {
         position: fixed;
         inset: 0;
@@ -109,7 +102,6 @@
         opacity: 0.9;
         pointer-events: none;
       }
-      /* Animations */
       @keyframes float {
         0%, 100% { transform: translateY(0) rotate(0); }
         50% { transform: translateY(-25px) rotate(3deg); }
@@ -124,8 +116,6 @@
       }
       .animate-float { animation: float 7s ease-in-out infinite; }
       .animate-float-slow { animation: float-alt 9s ease-in-out infinite; }
-      
-      /* Background Particles & Lights */
       .bg-light-blob {
         position: fixed;
         width: 700px;
@@ -136,8 +126,6 @@
         z-index: -1;
         animation: pulse-glow 12s ease-in-out infinite;
       }
-
-      /* Scrollbar */
       ::-webkit-scrollbar { width: 6px; }
       ::-webkit-scrollbar-track { background: #02040a; }
       ::-webkit-scrollbar-thumb {
@@ -149,19 +137,18 @@
   <script type="importmap">
 {
   "imports": {
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
-    "vite": "https://esm.sh/vite@^7.3.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
-    <!-- ربط ملف الدخول الأساسي للمشروع -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

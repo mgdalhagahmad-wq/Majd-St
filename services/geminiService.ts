@@ -86,12 +86,12 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   return new Blob([outBuffer], { type: "audio/wav" });
 }
 
-export class MajdStudioService {
+export class SavioStudioService {
   private ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string, controls: any }): Promise<string> {
     const prompt = `
-أنت خبير معالجة نصوص في استوديو "مجد VO". مهمتك هي إعادة صياغة النص العربي التالي ليناسب الأداء الصوتي المحترف.
+أنت خبير معالجة نصوص في استوديو "SAVIO STUDIO VO". مهمتك هي إعادة صياغة النص العربي التالي ليناسب الأداء الصوتي المحترف.
 
 المعايير المطلوبة:
 1. اللهجة: ${options.dialect}. (حول المفردات وبنية الجملة لتناسب اللهجة).
@@ -120,7 +120,7 @@ export class MajdStudioService {
 
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<string> {
     const studioDirective = `
-توجيه استوديو مجد VO الاحترافي:
+توجيه استوديو SAVIO STUDIO VO الاحترافي:
 يجب عليك محاكاة أداء صوتي عربي فائق الجودة بناءً على المعايير التالية بدقة متناهية:
 
 ${performanceNote}
@@ -166,4 +166,4 @@ ${performanceNote}
   }
 }
 
-export const savioService = new MajdStudioService();
+export const savioService = new SavioStudioService();
