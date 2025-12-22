@@ -1,0 +1,181 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>استوديو مجد VO | منصة التعليق الصوتي العربي الاحترافي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Montserrat:wght@200;400;600;700;800;900&family=Tajawal:wght@200;300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --brand-primary: #6366f1;
+        --brand-secondary: #22d3ee;
+        --brand-glow: rgba(99, 102, 241, 0.4);
+        --studio-dark: #030712;
+        --glass-bg: rgba(10, 10, 20, 0.7);
+        --neon-blue: #00f3ff;
+        --neon-purple: #a855f7;
+      }
+      body {
+        font-family: 'Tajawal', 'Montserrat', sans-serif;
+        background-color: var(--studio-dark);
+        color: #f1f5f9;
+        overflow-x: hidden;
+        perspective: 1200px;
+      }
+      .font-arabic {
+        font-family: 'Tajawal', 'Amiri', serif;
+      }
+      /* 3D Glassmorphism */
+      .glass-3d {
+        background: var(--glass-bg);
+        backdrop-filter: blur(30px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        box-shadow: 
+          0 25px 50px -12px rgba(0, 0, 0, 0.7),
+          inset 0 1px 1px rgba(255, 255, 255, 0.05);
+        transform-style: preserve-3d;
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+      }
+      .glass-3d:hover {
+        transform: translateY(-8px) rotateX(1deg);
+        box-shadow: 
+          0 40px 70px -15px rgba(0, 0, 0, 0.8),
+          inset 0 1px 1px rgba(255, 255, 255, 0.1);
+      }
+      /* Brand Fluid Text & BG */
+      .brand-text {
+        background: linear-gradient(135deg, var(--brand-secondary) 0%, var(--brand-primary) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 15px rgba(34, 211, 238, 0.3));
+      }
+      .brand-bg {
+        background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
+        box-shadow: 0 10px 30px -5px rgba(99, 102, 241, 0.5);
+      }
+      /* Android Tech Style Intro */
+      .android-tech-logo {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.35em;
+        background: linear-gradient(180deg, #fff 0%, var(--brand-secondary) 50%, var(--brand-primary) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: brand-pulse 4s ease-in-out infinite;
+        text-shadow: 
+          0 10px 30px rgba(0,0,0,0.8);
+      }
+      @keyframes brand-pulse {
+        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px rgba(34, 211, 238, 0.5)); }
+        50% { transform: scale(1.03); filter: drop-shadow(0 0 45px rgba(99, 102, 241, 0.7)); }
+      }
+      .android-subtitle {
+        font-family: 'Montserrat', sans-serif;
+        color: var(--brand-secondary);
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 1.1em;
+        margin-top: 0.5rem;
+        text-shadow: 0 0 25px rgba(34, 211, 238, 0.6);
+        opacity: 0.8;
+      }
+      /* Cinematic Intro Specifics */
+      @keyframes cinematicZoom {
+        0% { transform: scale(0.8) translateZ(-300px); opacity: 0; }
+        25% { opacity: 1; }
+        100% { transform: scale(1.15) translateZ(150px); opacity: 0; }
+      }
+      .animate-cinematic {
+        animation: cinematicZoom 5.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      /* Particles */
+      .particle {
+        position: absolute;
+        background: radial-gradient(circle, var(--brand-secondary) 0%, transparent 80%);
+        border-radius: 50%;
+        opacity: 0.2;
+        pointer-events: none;
+      }
+      /* Fog Layer */
+      .fog-layer {
+        position: fixed;
+        inset: 0;
+        background: radial-gradient(circle at 50% 50%, transparent 0%, var(--studio-dark) 90%);
+        opacity: 0.9;
+        pointer-events: none;
+      }
+      /* Animations */
+      @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(0); }
+        50% { transform: translateY(-25px) rotate(3deg); }
+      }
+      @keyframes float-alt {
+        0%, 100% { transform: translateY(0) rotate(0); }
+        50% { transform: translateY(-20px) rotate(-4deg); }
+      }
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 0.3; filter: blur(50px); }
+        50% { opacity: 0.6; filter: blur(80px); }
+      }
+      .animate-float { animation: float 7s ease-in-out infinite; }
+      .animate-float-slow { animation: float-alt 9s ease-in-out infinite; }
+      
+      /* Background Particles & Lights */
+      .bg-light-blob {
+        position: fixed;
+        width: 700px;
+        height: 700px;
+        background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+        border-radius: 50%;
+        filter: blur(100px);
+        z-index: -1;
+        animation: pulse-glow 12s ease-in-out infinite;
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: #02040a; }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b;
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover { background: var(--brand-primary); }
+
+      /* Neon Edges */
+      .neon-border {
+        position: relative;
+      }
+      .neon-border::before {
+        content: '';
+        position: absolute;
+        inset: -1px;
+        background: linear-gradient(45deg, transparent, rgba(34, 211, 238, 0.3), transparent);
+        border-radius: inherit;
+        z-index: -1;
+        transition: opacity 0.4s;
+        opacity: 0;
+      }
+      .neon-border:hover::before {
+        opacity: 1;
+      }
+    </style>
+    <script type="importmap">
+    {
+      "imports": {
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+        "react/": "https://esm.sh/react@^19.2.3/",
+        "react": "https://esm.sh/react@^19.2.3"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
