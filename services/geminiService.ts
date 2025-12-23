@@ -1,6 +1,7 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
+// وظيفة لفك تشفير Base64 إلى Uint8Array يدوياً كما تشترط الإرشادات
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -11,15 +12,15 @@ function decode(base64: string) {
   return bytes;
 }
 
+// وظيفة معالجة بيانات PCM الخام القادمة من Gemini
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  // استخدام نسخة من الـ buffer لضمان عدم حدوث مشاكل في الذاكرة المشتركة
-  const bufferCopy = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  const dataInt16 = new Int16Array(bufferCopy);
+  // التأكد من محاذاة البيانات (Alignment) لتحويلها إلى Int16
+  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
@@ -32,6 +33,7 @@ async function decodeAudioData(
   return buffer;
 }
 
+// تحويل AudioBuffer إلى ملف WAV جاهز للتحميل أو التشغيل
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const numOfChan = buffer.numberOfChannels;
   const length = buffer.length * numOfChan * 2 + 44;
@@ -60,12 +62,14 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   for (i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
   while (pos < length) {
     for (i = 0; i < numOfChan; i++) {
-      sample = Math.max(-1, Math.min(1, channels[i][offset]));
-      sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
-      view.setInt16(pos, sample, true);
-      pos += 2;
+      for (let ch = 0; ch < numOfChan; ch++) {
+        sample = Math.max(-1, Math.min(1, channels[ch][offset]));
+        sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+        view.setInt16(pos, sample, true);
+        pos += 2;
+      }
+      offset++;
     }
-    offset++;
   }
   return new Blob([outBuffer], { type: "audio/wav" });
 }
@@ -79,49 +83,69 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 };
 
 export class MajdStudioService {
-  private ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
+  /**
+   * تحسين النص باستخدام Gemini 3 Flash
+   */
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
-    const prompt = `
-أنت خبير معالجة نصوص في "Majd STUDIO VO". مهمتك هي إعادة صياغة النص العربي ليناسب الأداء الصوتي المحترف.
-المعايير: اللهجة ${options.dialect}، المجال ${options.field}، الشخصية ${options.personality}.
-أضف علامات ترقيم دقيقة (،) (...) ووقفات تنفس.
-أخرج النص المعالج فقط بالعربية.
-النص: "${text}"
-    `;
-    const response = await this.ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: [{ parts: [{ text: prompt }] }],
-    });
-    return response.text || text;
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const prompt = `أعد صياغة النص التالي بلهجة ${options.dialect} لمجال ${options.field}. أضف علامات ترقيم لضبط النفس والوقفات. أخرج النص الجديد فقط: "${text}"`;
+      
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
+      });
+      
+      return response.text || text;
+    } catch (error) {
+      console.error("Text Preprocess Error:", error);
+      return text; // العودة للنص الأصلي في حال الفشل
+    }
   }
 
+  /**
+   * توليد الصوت باستخدام Gemini 2.5 Flash Native Audio (TTS)
+   */
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
-    const directive = `توجيه Majd STUDIO VO الاحترافي: ${performanceNote}\nالنص: "${text}"`;
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const directive = `الأداء المطلوب: ${performanceNote}. النص المراد تسجيله: "${text}"`;
 
-    const response = await this.ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: directive }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
-      },
-    });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text: directive }] }],
+        config: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { 
+            voiceConfig: { 
+              prebuiltVoiceConfig: { voiceName: voiceName } 
+            } 
+          },
+        },
+      });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("Audio generation failed");
+      const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      
+      if (!base64Audio) {
+        throw new Error("لم يتم استلام بيانات صوتية من الخادم (No Audio Data)");
+      }
 
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    const decodedBytes = decode(base64Audio);
-    const audioBuffer = await decodeAudioData(decodedBytes, audioContext, 24000, 1);
-    
-    const wavBlob = audioBufferToWav(audioBuffer);
-    const dataUrl = await blobToDataURL(wavBlob);
-    
-    return {
-      dataUrl,
-      duration: audioBuffer.duration
-    };
+      // إعداد سياق الصوت للتحويل
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      const decodedBytes = decode(base64Audio);
+      const audioBuffer = await decodeAudioData(decodedBytes, audioContext, 24000, 1);
+      
+      const wavBlob = audioBufferToWav(audioBuffer);
+      const dataUrl = await blobToDataURL(wavBlob);
+      
+      return {
+        dataUrl,
+        duration: audioBuffer.duration
+      };
+    } catch (error: any) {
+      console.error("Voice Generation Error Details:", error);
+      throw error; // سيتم التقاطه في App.tsx وإظهار التنبيه للمستخدم
+    }
   }
 }
 
