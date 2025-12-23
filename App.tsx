@@ -5,6 +5,18 @@ import { GenerationRecord, VoiceControls, GlobalStats } from './types';
 import { majdService } from './services/geminiService';
 import { api } from './services/apiService';
 
+// --- رسائل الانتظار الفكاهية ---
+const WAITING_MESSAGES = [
+  "شغالين على إنتاج الصوت بأعلى جودة..",
+  "يالا أهو قربنا نخلص، شوية صبر..",
+  "مهندس الصوت شكله نام ولا إيه؟ بنصحيه حالاً!",
+  "معلش انتظرني أقل من دقيقة وهتنبهر..",
+  "بنسخن الأحبال الصوتية للذكاء الاصطناعي..",
+  "بنضبط طبقات الصوت عشان تطلع بريمو..",
+  "ثواني وبنخلص المكساج الأخير..",
+  "بنجهزلك المخطوطة في أبهى صورة.."
+];
+
 // --- المكونات المساعدة ---
 
 const StatCard: React.FC<{ label: string, value: string | number, icon?: string }> = ({ label, value, icon }) => (
@@ -70,6 +82,7 @@ const App: React.FC = () => {
   const [refinedText, setRefinedText] = useState<string>('');
   const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string>(WAITING_MESSAGES[0]);
   const [currentResult, setCurrentResult] = useState<GenerationRecord | null>(null);
 
   const availableProfiles = useMemo(() => {
@@ -105,6 +118,19 @@ const App: React.FC = () => {
       }
     };
   }, [userId]);
+
+  // تبديل رسائل الانتظار تلقائياً
+  useEffect(() => {
+    let interval: any;
+    if (isGenerating) {
+      let idx = 0;
+      interval = setInterval(() => {
+        idx = (idx + 1) % WAITING_MESSAGES.length;
+        setLoadingMessage(WAITING_MESSAGES[idx]);
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating]);
 
   const toggleAudio = (id: string, data: string) => {
     if (playingId === id) {
@@ -145,6 +171,7 @@ const App: React.FC = () => {
     const textToUse = refinedText || inputText;
     if (!textToUse.trim() || !selectedProfile) return;
     setIsGenerating(true);
+    setLoadingMessage(WAITING_MESSAGES[0]);
     try {
       const baseVoice = getBaseVoiceForType(selectedAge, selectedGender);
       const { dataUrl, duration } = await majdService.generateVoiceOver(
@@ -260,6 +287,30 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
       
+      {/* طبقة التحميل الذكية (Overlay) */}
+      {isGenerating && (
+        <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="relative mb-12">
+            <h2 className="tech-logo text-6xl md:text-8xl animate-pulse">Majd</h2>
+            <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-48 h-1 brand-bg rounded-full overflow-hidden">
+               <div className="w-1/2 h-full bg-white animate-[loading_1.5s_infinite]" />
+            </div>
+          </div>
+          <div className="glass-3d p-8 rounded-3xl border-cyan-500/30 max-w-lg">
+            <p className="text-2xl font-black text-white mb-2 animate-in fade-in slide-in-from-bottom-2 duration-700" key={loadingMessage}>
+              {loadingMessage}
+            </p>
+            <p className="text-white/30 text-[10px] uppercase tracking-widest font-bold">جاري توليد الملف الصوتي الآن</p>
+          </div>
+          <style>{`
+            @keyframes loading {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(200%); }
+            }
+          `}</style>
+        </div>
+      )}
+
       <div className="fixed top-8 left-8 z-50">
         <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-[10px] uppercase tracking-widest">Control Panel</button>
       </div>
@@ -311,10 +362,9 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* --- قسم المخطوطة الجديد --- */}
+        {/* --- قسم المخطوطة المحسن --- */}
         <section className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* المخطوطة الأصلية */}
             <div className="relative glass-3d rounded-[40px] border-white/5 group transition-all">
                <div className="absolute top-6 right-8 text-[10px] font-bold text-white/20 uppercase tracking-widest">المخطوطة الأصلية</div>
                <textarea className="w-full h-80 bg-transparent p-12 pt-16 text-xl text-white/40 text-right outline-none resize-none placeholder:text-white/5 font-arabic" placeholder="اكتب نصك الخام هنا..." value={inputText} onChange={e => { setInputText(e.target.value); if(refinedText) setRefinedText(''); }} />
@@ -323,7 +373,6 @@ const App: React.FC = () => {
                </button>
             </div>
 
-            {/* النص المطور */}
             <div className={`relative glass-3d rounded-[40px] border-cyan-500/20 transition-all overflow-hidden ${refinedText ? 'opacity-100 translate-x-0' : 'opacity-30 pointer-events-none scale-95'}`}>
                <div className="absolute top-6 right-8 text-[10px] font-bold text-cyan-400 uppercase tracking-widest">النص المطور (للتوليد)</div>
                <textarea className="w-full h-80 bg-cyan-500/5 p-12 pt-16 text-xl text-white text-right outline-none resize-none font-arabic leading-relaxed" placeholder="سيظهر النص المحسن هنا..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
@@ -336,15 +385,8 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim() || !selectedProfile} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-4">
-            {isGenerating ? (
-              <>
-                <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>جاري استدعاء المحرك الصوتي...</span>
-              </>
-            ) : (
-              <span>توليد التعليق الصوتي</span>
-            )}
+          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim() || !selectedProfile} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-4">
+            <span>توليد التعليق الصوتي</span>
           </button>
         </section>
 
