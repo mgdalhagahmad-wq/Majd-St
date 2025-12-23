@@ -4,11 +4,12 @@ import { GenerationRecord, GlobalStats, SessionLog } from '../types';
 const SUPABASE_URL = "https://afyohuikevwanybonepk.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_PDVsB-Q57wteNO50MtyBAg_2it3Jfem"; 
 
-class MajdStudioEngine {
+class MajdEngine {
   private headers = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
   };
 
   private base64ToBlob(base64: string, mime: string): Blob {
@@ -27,79 +28,62 @@ class MajdStudioEngine {
     const ua = navigator.userAgent;
     let browser = "Other";
     let os = "Other";
-
     if (ua.includes("Chrome")) browser = "Chrome";
     else if (ua.includes("Firefox")) browser = "Firefox";
-    else if (ua.includes("Safari")) browser = "Safari";
-    else if (ua.includes("Edge")) browser = "Edge";
-
+    else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
     if (ua.includes("Windows")) os = "Windows";
     else if (ua.includes("Mac")) os = "MacOS";
     else if (ua.includes("Android")) os = "Android";
-    else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
-    else if (ua.includes("Linux")) os = "Linux";
-
-    return { 
-      browser, 
-      os, 
-      device: /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop" 
-    };
+    return { browser, os, device: /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop" };
   }
 
   async logSession(userId: string): Promise<SessionLog | null> {
     try {
-      // جلب بيانات الموقع عبر خدمة IP
-      const geoRes = await fetch('https://ipapi.co/json/');
-      const geo = await geoRes.json();
-      
       const device = this.getDeviceInfo();
       const session: SessionLog = {
-        id: 'sess_' + Date.now() + Math.random().toString(36).substr(2, 5),
+        id: `sess_${Date.now()}`,
         user_id: userId,
         start_time: Date.now(),
         last_active: Date.now(),
-        country: geo.country_name || "Unknown",
-        country_code: geo.country_code || "WW",
-        city: geo.city || "Unknown",
-        region: geo.region || "Unknown",
-        ip: geo.ip || "0.0.0.0",
+        country: "Unknown",
+        country_code: "WW",
+        city: "Unknown",
+        region: "Unknown",
+        ip: "0.0.0.0",
         browser: device.browser,
         os: device.os,
         device: device.device,
         referrer: document.referrer || "Direct"
       };
 
-      await fetch(`${SUPABASE_URL}/rest/v1/sessions`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/sessions`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(session)
       });
-
-      return session;
-    } catch (e) {
-      console.error("Session Log Error:", e);
-      return null;
-    }
+      return res.ok ? session : null;
+    } catch (e) { return null; }
   }
 
   async saveRecord(record: any): Promise<GenerationRecord> {
-    const fileName = `${record.user_id}_${Date.now()}.wav`;
-    const audioBlob = this.base64ToBlob(record.audio_data, 'audio/wav');
-
     try {
+      const fileName = `${record.user_id}_${Date.now()}.wav`;
+      const audioBlob = this.base64ToBlob(record.audio_data, 'audio/wav');
+      
       const uploadRes = await fetch(`${SUPABASE_URL}/storage/v1/object/voices/${fileName}`, {
         method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'audio/wav'
+        headers: { 
+          'apikey': SUPABASE_KEY, 
+          'Authorization': `Bearer ${SUPABASE_KEY}`, 
+          'Content-Type': 'audio/wav' 
         },
         body: audioBlob
       });
 
-      if (!uploadRes.ok) throw new Error("Cloud Storage Connection Failed");
-
-      const audioUrl = `${SUPABASE_URL}/storage/v1/object/public/voices/${fileName}`;
+      let audioUrl = record.audio_data; 
+      if (uploadRes.ok) {
+        audioUrl = `${SUPABASE_URL}/storage/v1/object/public/voices/${fileName}`;
+      }
 
       const newRecord = {
         id: 'rec_' + Date.now(),
@@ -110,32 +94,47 @@ class MajdStudioEngine {
         audio_url: audioUrl,
         duration: record.duration,
         status: 'success',
-        engine: 'Majd Studio Intelligence',
+        engine: 'Majd Intelligence Core',
         rating: 0
       };
 
-      await fetch(`${SUPABASE_URL}/rest/v1/records`, {
+      const dbRes = await fetch(`${SUPABASE_URL}/rest/v1/records`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(newRecord)
       });
 
-      return { ...newRecord, audio_data: audioUrl } as any;
-    } catch (e: any) {
+      if (!dbRes.ok) throw new Error("Database save failed");
+      return { ...newRecord, audio_data: record.audio_data } as any;
+    } catch (e) {
       throw e;
     }
   }
 
-  async updateRating(recordId: string, rating: number) {
+  async submitFeedback(userId: string, rating: number, comment: string) {
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${recordId}`, {
-        method: 'PATCH',
+      const feedback = {
+        id: `fb_${Date.now()}`,
+        user_id: userId,
+        rating,
+        comment,
+        timestamp: Date.now()
+      };
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/feedback`, {
+        method: 'POST',
         headers: this.headers,
-        body: JSON.stringify({ rating })
+        body: JSON.stringify(feedback)
       });
-    } catch (e) {
-      console.error("Rating Sync Failed");
-    }
+      return res.ok;
+    } catch (e) { return false; }
+  }
+
+  async getFeedbacks(): Promise<any[]> {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/feedback?order=timestamp.desc&limit=50`, { headers: this.headers });
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (e) { return []; }
   }
 
   async getUserRecords(userId: string): Promise<GenerationRecord[]> {
@@ -158,48 +157,34 @@ class MajdStudioEngine {
     try {
       const [recRes, sessRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/records?select=id,duration,rating`, { headers: this.headers }),
-        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=country,country_code,browser,os,city`, { headers: this.headers })
+        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=user_id`, { headers: this.headers })
       ]);
-      
       const records = await recRes.json();
       const sessions = await sessRes.json();
-
-      // التحليل الجغرافي
-      const countryMap: any = {};
-      const cityMap: any = {};
-      const browserMap: any = {};
-      const osMap: any = {};
-
-      sessions.forEach((s: any) => {
-        if (s.country) {
-          countryMap[s.country] = countryMap[s.country] || { count: 0, code: s.country_code };
-          countryMap[s.country].count++;
-        }
-        if (s.city) {
-          cityMap[s.city] = (cityMap[s.city] || 0) + 1;
-        }
-        if (s.browser) browserMap[s.browser] = (browserMap[s.browser] || 0) + 1;
-        if (s.os) osMap[s.os] = (osMap[s.os] || 0) + 1;
-      });
-
+      if (!Array.isArray(sessions) || !Array.isArray(records)) throw new Error();
       const rated = records.filter((r: any) => r.rating > 0);
-      const avgRating = rated.length > 0 ? rated.reduce((a: any, b: any) => a + b.rating, 0) / rated.length : 0;
-
       return {
-        total_users: new Set(sessions.map((s: any) => s.user_id)).size || 1,
+        total_users: new Set(sessions.map((s: any) => s.user_id)).size,
         total_records: records.length,
         total_visits: sessions.length,
         total_duration: records.reduce((a: any, b: any) => a + (b.duration || 0), 0),
-        avg_rating: parseFloat(avgRating.toFixed(1)),
-        top_countries: Object.entries(countryMap).map(([name, data]: any) => ({ name, count: data.count, code: data.code })).sort((a, b) => b.count - a.count).slice(0, 10),
-        top_browsers: Object.entries(browserMap).map(([name, count]: any) => ({ name, count })).sort((a, b) => b.count - a.count),
-        top_os: Object.entries(osMap).map(([name, count]: any) => ({ name, count })).sort((a, b) => b.count - a.count),
-        top_cities: Object.entries(cityMap).map(([name, count]: any) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5)
+        avg_rating: rated.length > 0 ? Number((rated.reduce((a: any, b: any) => a + b.rating, 0) / rated.length).toFixed(1)) : 5.0,
+        top_countries: [], top_browsers: [], top_os: [], top_cities: []
       };
     } catch (e) {
-      return { total_users: 0, total_records: 0, total_visits: 0, total_duration: 0, avg_rating: 0, top_countries: [], top_browsers: [], top_os: [], top_cities: [] };
+      return { total_users: 0, total_records: 0, total_visits: 0, total_duration: 0, avg_rating: 5, top_countries: [], top_browsers: [], top_os: [], top_cities: [] };
     }
+  }
+
+  async updateRating(recordId: string, rating: number) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/records?id=eq.${recordId}`, {
+        method: 'PATCH',
+        headers: this.headers,
+        body: JSON.stringify({ rating })
+      });
+    } catch (e) {}
   }
 }
 
-export const api = new MajdStudioEngine();
+export const api = new MajdEngine();

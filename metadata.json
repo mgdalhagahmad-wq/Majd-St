@@ -1,6 +1,6 @@
 {
-  "name": "Majd STUDIO VO",
-  "description": "منصة Majd المتطورة للتعليق الصوتي العربي الاحترافي، مدعومة بتقنيات السحاب والذكاء الاصطناعي.",
+  "name": "Majd Studio VO",
+  "description": "استوديو مجد للذكاء الاصطناعي - القمة في التعليق الصوتي العربي الاحترافي.",
   "requestFramePermissions": [
     "microphone"
   ]
