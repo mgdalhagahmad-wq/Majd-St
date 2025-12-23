@@ -1,7 +1,6 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// وظيفة لفك تشفير Base64 إلى Uint8Array
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -12,14 +11,12 @@ function decode(base64: string) {
   return bytes;
 }
 
-// معالجة بيانات PCM الخام
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  // فك التشفير من PCM 16-bit
   const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
@@ -33,7 +30,6 @@ async function decodeAudioData(
   return buffer;
 }
 
-// تحويل AudioBuffer إلى WAV (إصدار محسّن ومستقر)
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const numOfChan = buffer.numberOfChannels;
   const length = buffer.length * numOfChan * 2 + 44;
@@ -44,26 +40,24 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   const setUint16 = (data: number) => { view.setUint16(pos, data, true); pos += 2; };
   const setUint32 = (data: number) => { view.setUint32(pos, data, true); pos += 4; };
 
-  // RIFF Header
   setUint32(0x46464952); // "RIFF"
   setUint32(length - 8);
   setUint32(0x45564157); // "WAVE"
   setUint32(0x20746d66); // "fmt "
   setUint32(16);
-  setUint16(1); // PCM Format
+  setUint16(1); 
   setUint16(numOfChan);
   setUint32(buffer.sampleRate);
   setUint32(buffer.sampleRate * 2 * numOfChan);
   setUint16(numOfChan * 2);
-  setUint16(16); // 16-bit
+  setUint16(16); 
   setUint32(0x61746164); // "data"
   setUint32(length - pos - 4);
 
-  // Write samples
   for (let i = 0; i < buffer.length; i++) {
     for (let channel = 0; channel < numOfChan; channel++) {
       let sample = buffer.getChannelData(channel)[i];
-      sample = Math.max(-1, Math.min(1, sample)); // Clamp
+      sample = Math.max(-1, Math.min(1, sample)); 
       sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
       view.setInt16(pos, sample, true);
       pos += 2;
@@ -87,7 +81,7 @@ export class MajdStudioService {
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key is missing");
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `أعد صياغة النص التالي بلهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون حشو: "${text}"`;
+      const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -96,7 +90,6 @@ export class MajdStudioService {
       
       return response.text || text;
     } catch (error) {
-      console.warn("Text Preprocess Error:", error);
       return text;
     }
   }
@@ -104,30 +97,21 @@ export class MajdStudioService {
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     try {
       const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key is missing in environment");
-
-      const ai = new GoogleGenAI({ apiKey });
-      const directive = `أداء صوتي احترافي: ${performanceNote}. النص: "${text}"`;
+      const ai = new GoogleGenAI({ apiKey: apiKey as string });
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: directive }] }],
+        contents: [{ parts: [{ text: `${performanceNote}. النص: "${text}"` }] }],
         config: {
           responseModalities: ["AUDIO"],
-          speechConfig: { 
-            voiceConfig: { 
-              prebuiltVoiceConfig: { voiceName: voiceName } 
-            } 
-          },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
         },
       });
 
       const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = audioPart?.inlineData?.data;
       
-      if (!base64Audio) {
-        throw new Error("Invalid API response: Audio data not found");
-      }
+      if (!base64Audio) throw new Error("Audio data not found");
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedBytes = decode(base64Audio);
@@ -138,7 +122,6 @@ export class MajdStudioService {
       
       return { dataUrl, duration: audioBuffer.duration };
     } catch (error: any) {
-      console.error("CRITICAL GENERATION ERROR:", error.message || error);
       throw error;
     }
   }

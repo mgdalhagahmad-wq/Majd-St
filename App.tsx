@@ -6,14 +6,14 @@ import { majdService } from './services/geminiService';
 import { api } from './services/apiService';
 
 const WAITING_MESSAGES = [
-  "شغالين على إنتاج الصوت بأعلى جودة..",
-  "يالا أهو قربنا نخلص، شوية صبر..",
-  "مهندس الصوت شكله نام ولا إيه؟ بنصحيه حالاً!",
-  "معلش انتظرني أقل من دقيقة وهتنبهر..",
-  "بنسخن الأحبال الصوتية للذكاء الاصطناعي..",
-  "بنضبط طبقات الصوت عشان تطلع بريمو..",
-  "ثواني وبنخلص المكساج الأخير..",
-  "بنجهزلك المخطوطة في أبهى صورة.."
+  "نجهز طبقات الصوت في استوديو Majd..",
+  "جاري إنتاج المخطوطة الصوتية بأعلى جودة..",
+  "مهندس الصوت الذكي يقوم بالمكساج حالياً..",
+  "ثواني ويكون صوتك الاحترافي جاهزاً..",
+  "Majd يقوم بضبط الأداء الدرامي للنص..",
+  "بنسخن الأحبال الصوتية الرقمية..",
+  "عملية المعالجة السحابية قاربت على الانتهاء..",
+  "استعد لسماع النتيجة المبهرة.."
 ];
 
 const StatCard: React.FC<{ label: string, value: string | number, icon?: string }> = ({ label, value, icon }) => (
@@ -74,7 +74,7 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<GenerationRecord[]>([]);
   const [userId] = useState(() => {
     let id = localStorage.getItem('majd_uid');
-    if (!id) { id = 'User_' + Math.random().toString(36).substr(2, 6); localStorage.setItem('majd_uid', id); }
+    if (!id) { id = 'MAJD_USER_' + Math.random().toString(36).substr(2, 6); localStorage.setItem('majd_uid', id); }
     return id;
   });
 
@@ -117,7 +117,7 @@ const App: React.FC = () => {
         await api.logSession(userId);
         const records = await api.getUserRecords(userId);
         setHistory(records);
-      } catch (e) { console.warn("Init cloud failed"); }
+      } catch (e) { console.warn("Cloud connection error"); }
     };
     init();
     return () => { if (audioRef.current) audioRef.current.pause(); };
@@ -135,14 +135,14 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const toggleAudio = (id: string, data: string) => {
+  const toggleAudio = (id: string, url: string) => {
     if (playingId === id) {
       audioRef.current?.pause();
       setPlayingId(null);
     } else {
       if (audioRef.current) audioRef.current.pause();
-      audioRef.current = new Audio(data);
-      audioRef.current.play().catch(() => alert("تعذر تشغيل الصوت"));
+      audioRef.current = new Audio(url);
+      audioRef.current.play().catch(() => alert("تأكد أن الـ Bucket 'voices' في Supabase عام (Public)."));
       setPlayingId(id);
       audioRef.current.onended = () => setPlayingId(null);
     }
@@ -155,74 +155,49 @@ const App: React.FC = () => {
       const refined = await majdService.preprocessText(inputText, { 
         dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || 'فصحى', 
         field: selectedProfile?.category || 'General', 
-        personality: 'Pro' 
+        personality: 'Professional' 
       });
       setRefinedText(refined);
-    } catch (e) { alert("تعذر تحسين النص حالياً."); }
+    } catch (e) { alert("تعذر التحسين حالياً."); }
     finally { setIsPreprocessing(false); }
   };
 
   const handleGenerate = async () => {
     const textToUse = refinedText || inputText;
     if (!textToUse.trim() || !selectedProfile) {
-      alert("يرجى إكمال البيانات أولاً.");
+      alert("يرجى إدخال النص واختيار المعلق.");
       return;
     }
 
     setIsGenerating(true);
-    setCurrentResult(null); // ريست للنتيجة السابقة
+    setCurrentResult(null); 
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
       const { dataUrl, duration } = await majdService.generateVoiceOver(
         textToUse, 
         baseVoice, 
-        `صوت ${selectedProfile.name} - ${JSON.stringify(voiceControls)}`
+        `بصوت ${selectedProfile.name} - تحكم: ${JSON.stringify(voiceControls)}`
       );
       
-      // كائن التسجيل المؤقت
-      const tempRecord: GenerationRecord = {
-        id: 'temp_' + Date.now(),
+      const record = await api.saveRecord({
+        text: textToUse, 
         user_id: userId,
-        text: textToUse,
-        audio_data: dataUrl,
-        duration: duration,
-        timestamp: Date.now(),
-        status: 'success',
-        engine: 'Local Gen',
-        selection: {
-            dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '',
-            type: selectedAge,
-            field: selectedProfile.category,
-            controls: voiceControls
-        }
-      };
+        selection: { 
+          dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', 
+          type: selectedAge, 
+          field: selectedProfile.category, 
+          controls: voiceControls 
+        },
+        audio_data: dataUrl, 
+        duration: duration
+      });
 
-      // عرض النتيجة للمستخدم فوراً
-      setCurrentResult(tempRecord);
-
-      // محاولة الحفظ في السحاب في الخلفية
-      try {
-        const cloudRecord = await api.saveRecord({
-          text: textToUse, 
-          user_id: userId,
-          selection: { 
-            dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', 
-            type: selectedAge, 
-            field: selectedProfile.category, 
-            controls: voiceControls 
-          },
-          audio_data: dataUrl, 
-          duration: duration
-        });
-        setHistory(prev => [cloudRecord, ...prev].slice(0, 5));
-      } catch (cloudError: any) {
-        console.warn("Cloud save failed but audio generated:", cloudError.message);
-        // لا نزعج المستخدم بتنبيه إذا فشل الحفظ السحابي طالما الصوت جاهز
-      }
+      setCurrentResult(record); 
+      setHistory(prev => [record, ...prev]);
 
     } catch (e: any) { 
-      console.error("Generation Error:", e);
-      alert("عذراً، حدث خطأ في محرك توليد الصوت (Gemini). يرجى التأكد من النص والمحاولة لاحقاً."); 
+      console.error("Cloud Error:", e);
+      alert("خطأ في الربط السحابي. تأكد من إعدادات Supabase Storage."); 
     }
     finally { setIsGenerating(false); }
   };
@@ -238,16 +213,16 @@ const App: React.FC = () => {
         setGlobalRecords(allRecords);
         setIsAdminView(true);
         setShowLogin(false);
-      } catch(e) { alert("خطأ في جلب البيانات السحابية"); }
+      } catch(e) { alert("فشل جلب البيانات السحابية"); }
       setIsRefreshing(false);
-    } else alert("خطأ في كلمة المرور");
+    } else alert("الرمز غير صحيح");
   };
 
   if (showIntro) return (
     <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
       <div className="text-center animate-pulse">
         <h1 className="tech-logo text-7xl md:text-9xl">Majd</h1>
-        <p className="text-white/20 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">NEXT GEN VOICE STUDIO</p>
+        <p className="text-white/20 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">THE ULTIMATE VOICE STUDIO</p>
       </div>
     </div>
   );
@@ -256,24 +231,24 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#020617] text-white p-10 md:p-20 font-arabic">
       <header className="flex justify-between items-center mb-16">
         <div>
-          <h1 className="text-4xl font-black brand-text">لوحة التحكم السحابية</h1>
-          <p className="text-white/40 text-[10px] uppercase tracking-widest mt-2">MAJD CLOUD ENGINE</p>
+          <h1 className="text-4xl font-black brand-text">Majd Dashboard</h1>
+          <p className="text-white/40 text-[10px] uppercase tracking-widest mt-2">SUPABASE CLOUD INFRASTRUCTURE</p>
         </div>
         <div className="flex gap-4">
           <button onClick={handleAdminAuth} disabled={isRefreshing} className="px-8 py-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold">تحديث 🔄</button>
-          <button onClick={() => setIsAdminView(false)} className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold">خروج</button>
+          <button onClick={() => setIsAdminView(false)} className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold">العودة للاستوديو</button>
         </div>
       </header>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
-        <StatCard label="التسجيلات" value={stats.total_records} icon="🎙️" />
-        <StatCard label="المتوسط" value={stats.avg_voices_per_user.toFixed(1)} icon="📊" />
-        <StatCard label="العمليات" value="LIVE" icon="⏱️" />
+        <StatCard label="إجمالي المستخدمين" value={stats.total_users} icon="👥" />
+        <StatCard label="إجمالي المقاطع" value={stats.total_records} icon="🎙️" />
+        <StatCard label="ساعات الإنتاج" value={(stats.total_duration / 3600).toFixed(2)} icon="📊" />
+        <StatCard label="حالة السحاب" value="CONNECTED" icon="⚡" />
       </div>
 
       <div className="admin-card p-10 rounded-[40px] space-y-8 overflow-hidden">
-        <h3 className="text-xl font-bold border-b border-white/5 pb-4">سجل الأصوات العالمي (أحدث 3)</h3>
+        <h3 className="text-xl font-bold border-b border-white/5 pb-4">أحدث العمليات السحابية</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-right min-w-[700px]">
             <thead>
@@ -292,7 +267,7 @@ const App: React.FC = () => {
                   <td className="py-4 truncate max-w-[200px] opacity-60">"{rec.text}"</td>
                   <td className="py-4 flex gap-2">
                       <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-8 w-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center">▶</button>
-                      <a href={rec.audio_data} download className="h-8 w-8 rounded-lg bg-white/5 text-white/40 flex items-center justify-center">↓</a>
+                      <a href={rec.audio_data} target="_blank" className="h-8 w-8 rounded-lg bg-white/5 text-white/40 flex items-center justify-center">↓</a>
                   </td>
                 </tr>
               ))}
@@ -315,29 +290,29 @@ const App: React.FC = () => {
       )}
 
       <div className="fixed top-8 left-8 z-50">
-        <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-[10px] uppercase tracking-widest">Admin</button>
+        <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-[10px] uppercase tracking-widest">Admin Access</button>
       </div>
 
       {showLogin && (
         <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6">
           <form onSubmit={handleAdminAuth} className="glass-3d w-full max-w-md p-12 rounded-[50px] text-center space-y-8">
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl focus:outline-none" />
-            <button className="w-full brand-bg py-5 rounded-2xl font-bold">دخول سحابي</button>
-            <button type="button" onClick={()=>setShowLogin(false)} className="text-white/20 text-xs">إغلاق</button>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="رمز المرور السحابي" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl focus:outline-none" />
+            <button className="w-full brand-bg py-5 rounded-2xl font-bold">دخول المدير</button>
+            <button type="button" onClick={()=>setShowLogin(false)} className="text-white/20 text-xs">إلغاء</button>
           </form>
         </div>
       )}
 
       <header className="mb-24 text-center">
         <h1 className="tech-logo text-7xl md:text-9xl mb-4">Majd</h1>
-        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Professional Voice Studio</p>
+        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Arabic Voice Over Studio Pro</p>
       </header>
 
       <main className="w-full max-w-6xl space-y-16">
         <section className="glass-3d p-12 rounded-[50px] space-y-12">
-          <SelectionBlock title="اللهجة العربية" options={DIALECTS.map(d => ({ label: d.title, icon: d.flag }))} current={DIALECTS.find(d => d.id === selectedDialectId)?.title || ''} set={(t) => setSelectedDialectId(DIALECTS.find(d => d.title === t)?.id || DIALECTS[0].id)} />
+          <SelectionBlock title="اختيار اللهجة" options={DIALECTS.map(d => ({ label: d.title, icon: d.flag }))} current={DIALECTS.find(d => d.id === selectedDialectId)?.title || ''} set={(t) => setSelectedDialectId(DIALECTS.find(d => d.title === t)?.id || DIALECTS[0].id)} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-12">
-            <SelectionBlock title="الهوية" options={VOICE_TYPES.map(t => ({ label: t }))} current={selectedAge} set={setSelectedAge} />
+            <SelectionBlock title="نوع الصوت" options={VOICE_TYPES.map(t => ({ label: t }))} current={selectedAge} set={setSelectedAge} />
             <SelectionBlock title="الجنس" options={[{ label: 'ذكر' }, { label: 'أنثى' }]} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
           </div>
           <div className="space-y-6 pt-12 border-t border-white/5">
@@ -360,15 +335,15 @@ const App: React.FC = () => {
         <section className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="relative glass-3d rounded-[40px] p-12">
-               <textarea className="w-full h-64 bg-transparent text-xl text-white/40 text-right outline-none resize-none" placeholder="اكتب نصك الخام هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
-               <button onClick={handleImproveText} className="absolute bottom-8 left-8 px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-cyan-500 transition-all font-bold text-xs">تحسين المخطوطة ✨</button>
+               <textarea className="w-full h-64 bg-transparent text-xl text-white/40 text-right outline-none resize-none" placeholder="اكتب النص الخام هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
+               <button onClick={handleImproveText} className="absolute bottom-8 left-8 px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-cyan-500 transition-all font-bold text-xs">تحسين بذكاء Majd ✨</button>
             </div>
             <div className={`relative glass-3d rounded-[40px] p-12 border-cyan-500/20 ${refinedText ? 'opacity-100' : 'opacity-30'}`}>
-               <textarea className="w-full h-64 bg-transparent text-xl text-white text-right outline-none resize-none" placeholder="سيظهر النص المحسن هنا..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
+               <textarea className="w-full h-64 bg-transparent text-xl text-white text-right outline-none resize-none" placeholder="النص المحسن سيظهر هنا..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all">
-            {isGenerating ? 'جاري المعالجة...' : 'توليد الصوت'}
+            {isGenerating ? 'جاري الإنتاج والرفع للسحاب...' : 'توليد ورفع الصوت للاستوديو'}
           </button>
         </section>
 
@@ -378,14 +353,14 @@ const App: React.FC = () => {
               <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-20 w-20 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-rose-600' : ''}`}>
                 {playingId === currentResult.id ? "Pause" : "Play"}
               </button>
-              <div className="text-right"><h4 className="text-xl font-black">جاهز للتحميل</h4><p className="text-white/40 text-sm">{currentResult.duration.toFixed(1)}s | {currentResult.engine === 'Local Gen' ? 'Generated' : 'Cloud Saved'}</p></div>
+              <div className="text-right"><h4 className="text-xl font-black">جاهز للتحميل</h4><p className="text-white/40 text-sm">{currentResult.duration.toFixed(1)}s | Majd Cloud Hosting</p></div>
             </div>
-            <a href={currentResult.audio_data} download className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl transition-all">تحميل WAV</a>
+            <a href={currentResult.audio_data} download target="_blank" className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl transition-all">تحميل المقطع</a>
           </div>
         )}
 
         <section className="glass-3d p-12 rounded-[50px] space-y-8">
-          <h3 className="text-xl font-bold flex justify-between items-center"><span>السجل الشخصي (Cloud)</span></h3>
+          <h3 className="text-xl font-bold flex justify-between items-center"><span>سجل الإنتاج السحابي</span> <span className="text-[10px] opacity-20">تخزين دائم في Supabase</span></h3>
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
             {history.map((rec) => (
               <div key={rec.id} className="p-6 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-between group">
@@ -398,11 +373,11 @@ const App: React.FC = () => {
                 </div>
               </div>
             ))}
-            {history.length === 0 && <div className="py-10 text-center opacity-20 text-xs">لا توجد سجلات سحابية متاحة.</div>}
+            {history.length === 0 && <div className="py-10 text-center opacity-20 text-xs">لا توجد تسجيلات سحابية متاحة حالياً.</div>}
           </div>
         </section>
       </main>
-      <footer className="mt-40 text-center opacity-10 text-[10px] uppercase font-black tracking-[1em] pb-10">Majd STUDIO VO • PURE CLOUD ENGINE</footer>
+      <footer className="mt-40 text-center opacity-10 text-[10px] uppercase font-black tracking-[1em] pb-10">Majd STUDIO VO • POWERED BY SUPABASE</footer>
     </div>
   );
 };
