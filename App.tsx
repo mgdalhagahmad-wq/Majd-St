@@ -120,7 +120,6 @@ const App: React.FC = () => {
     init();
   }, [userId]);
 
-  // تبديل رسائل الانتظار
   useEffect(() => {
     let interval: any;
     if (isGenerating || isPreprocessing) {
@@ -203,7 +202,6 @@ const App: React.FC = () => {
     } else alert("كلمة السر غلط يا مدير");
   };
 
-  // Helper to get Category Icon
   const getCatIcon = (key: string) => {
      if (key === 'doc') return <StudioIcons.Doc />;
      if (key === 'ads') return <StudioIcons.Ads />;
@@ -228,71 +226,16 @@ const App: React.FC = () => {
         </div>
         <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
       </header>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
         <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
         <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
         <StatCard label="المقاطع" value={stats.total_records} icon="⚡" />
         <StatCard label="التقييم" value={stats.avg_rating} icon="⭐" />
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-         <div className="admin-card p-8 rounded-[40px]">
-            <h3 className="text-sm font-bold text-cyan-400 mb-6 uppercase tracking-widest">أعلى الدول 🌍</h3>
-            <div className="space-y-4">
-               {stats.top_countries.map((c, i) => (
-                 <div key={i} className="flex items-center justify-between">
-                   <div className="flex items-center gap-3"><span className="text-sm font-medium">{c.name}</span></div>
-                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count} زيارة</span>
-                 </div>
-               ))}
-            </div>
-         </div>
-         <div className="admin-card p-8 rounded-[40px]">
-            <h3 className="text-sm font-bold text-indigo-400 mb-6 uppercase tracking-widest">المتصفحات والأجهزة 💻</h3>
-            <div className="space-y-4">
-               {stats.top_browsers.map((b, i) => (
-                 <div key={i} className="flex items-center justify-between">
-                   <span className="text-sm font-medium">{b.name}</span>
-                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{b.count}</span>
-                 </div>
-               ))}
-            </div>
-         </div>
-         <div className="admin-card p-8 rounded-[40px]">
-            <h3 className="text-sm font-bold text-purple-400 mb-6 uppercase tracking-widest">أنظمة التشغيل ⚙️</h3>
-            <div className="space-y-4">
-               {stats.top_os.map((o, i) => (
-                 <div key={i} className="flex items-center justify-between">
-                   <span className="text-sm font-medium">{o.name}</span>
-                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{o.count}</span>
-                 </div>
-               ))}
-            </div>
-         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="admin-card p-8 rounded-[40px]">
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>💬</span> الآراء الأخيرة</h3>
-          <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{feedbacks.map((f, i) => (
-            <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between">
-              <div><RatingStars rating={f.rating} /><p className="text-sm italic mt-2 text-white/70">"{f.comment || 'بدون تعليق'}"</p></div>
-              <span className="text-[10px] opacity-30">{new Date(f.timestamp).toLocaleDateString()}</span>
-            </div>
-          ))}</div>
-        </div>
-        <div className="admin-card p-8 rounded-[40px]">
-           <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>🎙️</span> سجل العمليات</h3>
-           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{globalRecords.map((r, i) => (
-             <div key={i} className="p-4 rounded-2xl bg-white/5 flex justify-between items-center group">
-               <div className="text-xs truncate max-w-[250px] text-white/60">"{r.text}"</div>
-               <div className="flex items-center gap-3">
-                 <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400">{playingId === r.id ? '⏸' : '▶'}</button>
-               </div>
-             </div>
-           ))}</div>
-        </div>
+         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-cyan-400 mb-6 uppercase tracking-widest">أعلى الدول 🌍</h3><div className="space-y-4">{stats.top_countries.map((c, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{c.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count}</span></div>))}</div></div>
+         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-indigo-400 mb-6 uppercase tracking-widest">المتصفحات 💻</h3><div className="space-y-4">{stats.top_browsers.map((b, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{b.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{b.count}</span></div>))}</div></div>
+         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-purple-400 mb-6 uppercase tracking-widest">أنظمة التشغيل ⚙️</h3><div className="space-y-4">{stats.top_os.map((o, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{o.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{o.count}</span></div>))}</div></div>
       </div>
     </div>
   );
@@ -304,11 +247,6 @@ const App: React.FC = () => {
           <h2 className="tech-logo text-7xl animate-pulse mb-12">Majd</h2>
           <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 max-w-lg w-full transform transition-all animate-bounce">
              <p className="text-2xl font-bold text-white leading-relaxed">{WAITING_MESSAGES[currentWaitMsgIndex]}</p>
-          </div>
-          <div className="mt-8 flex gap-2">
-             <div className="w-3 h-3 bg-cyan-500 rounded-full animate-bounce delay-75"></div>
-             <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce delay-150"></div>
-             <div className="w-3 h-3 bg-cyan-500 rounded-full animate-bounce delay-200"></div>
           </div>
         </div>
       )}
@@ -337,25 +275,8 @@ const App: React.FC = () => {
           <SelectionBlock title="اختيار اللهجة" options={DIALECTS.map(d => ({ label: d.title, icon: d.flag }))} current={DIALECTS.find(d => d.id === selectedDialectId)?.title || ''} set={(t) => setSelectedDialectId(DIALECTS.find(d => d.title === t)?.id || '')} />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-12">
-            <SelectionBlock 
-              title="نوع الصوت" 
-              options={[
-                { label: 'بالغ', icon: <StudioIcons.Adult /> },
-                { label: 'كبار السن', icon: <StudioIcons.Elderly /> },
-                { label: 'شخصية كارتونية', icon: <StudioIcons.Cartoon /> }
-              ]} 
-              current={selectedAge} 
-              set={setSelectedAge} 
-            />
-            <SelectionBlock 
-              title="الجنس" 
-              options={[
-                { label: 'ذكر', icon: <StudioIcons.Male /> },
-                { label: 'أنثى', icon: <StudioIcons.Female /> }
-              ]} 
-              current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} 
-              set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} 
-            />
+            <SelectionBlock title="نوع الصوت" options={[{ label: 'بالغ', icon: <StudioIcons.Adult /> }, { label: 'كبار السن', icon: <StudioIcons.Elderly /> }, { label: 'شخصية كارتونية', icon: <StudioIcons.Cartoon /> }]} current={selectedAge} set={setSelectedAge} />
+            <SelectionBlock title="الجنس" options={[{ label: 'ذكر', icon: <StudioIcons.Male /> }, { label: 'أنثى', icon: <StudioIcons.Female /> }]} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-12 border-t border-white/5">
@@ -381,14 +302,16 @@ const App: React.FC = () => {
               <label className="text-[10px] text-white/30 absolute top-4 right-8 font-bold uppercase tracking-widest">النص الأصلي</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white/60 text-right outline-none resize-none pt-4" placeholder="اكتب النص هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
               <div className="lg:hidden flex justify-end mt-2">
-                 <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:scale-105 transition-all"><span>🪄</span> محسن النص AI</button>
+                 <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg hover:scale-105 transition-all">محسن النص AI</button>
               </div>
             </div>
+            
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:block">
-              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="h-20 w-20 rounded-full brand-bg text-white shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-110 transition-all flex items-center justify-center group border-4 border-[#020617]">
-                <span className="text-3xl group-hover:rotate-12 transition-transform">🪄</span>
+              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-105 transition-all border border-white/10">
+                محسن النص AI
               </button>
             </div>
+
             <div className={`relative glass-3d rounded-[40px] p-8 border-cyan-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-cyan-500/50' : 'opacity-30'}`}>
               <label className="text-[10px] text-cyan-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
@@ -425,14 +348,7 @@ const App: React.FC = () => {
                   </div>
                 ) : <div className="py-10 text-center"><h4 className="text-2xl font-bold text-cyan-400">وصل يا بطل! ❤️</h4></div>}
               </div>
-              <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                {publicFeedbacks.map((f, i) => (
-                  <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2">
-                    <RatingStars rating={f.rating} />
-                    <p className="text-xs text-white/60 italic">"{f.comment || 'تقييم ممتاز'}"</p>
-                  </div>
-                ))}
-              </div>
+              <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">{publicFeedbacks.map((f, i) => (<div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2"><RatingStars rating={f.rating} /><p className="text-xs text-white/60 italic">"{f.comment || 'تقييم ممتاز'}"</p></div>))}</div>
             </div>
           </div>
         </section>
