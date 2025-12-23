@@ -9,7 +9,7 @@ class MajdCloudEngine {
   /**
    * جلب البيانات الصافية من السحاب
    */
-  private async fetchRaw() {
+  private async fetchRaw(): Promise<{ records: GenerationRecord[], sessions: SessionLog[] }> {
     try {
       const res = await fetch(`${CLOUD_API_URL}/latest`, {
         headers: { 
@@ -33,7 +33,7 @@ class MajdCloudEngine {
   /**
    * تحديث السحاب بالبيانات الجديدة
    */
-  private async pushToCloud(data: { records: any[], sessions: any[] }) {
+  private async pushToCloud(data: { records: GenerationRecord[], sessions: SessionLog[] }): Promise<boolean> {
     try {
       const res = await fetch(CLOUD_API_URL, {
         method: 'PUT',
@@ -51,7 +51,7 @@ class MajdCloudEngine {
     }
   }
 
-  async logSession(userId: string) {
+  async logSession(userId: string): Promise<SessionLog> {
     const data = await this.fetchRaw();
     
     const newSession: SessionLog = {
@@ -66,12 +66,12 @@ class MajdCloudEngine {
       device: "Standard"
     };
 
-    data.sessions = [newSession, ...data.sessions].slice(0, 30); // حفظ آخر 30 جلسة فقط
+    data.sessions = [newSession, ...data.sessions].slice(0, 30);
     await this.pushToCloud(data);
     return newSession;
   }
 
-  async saveRecord(record: any) {
+  async saveRecord(record: any): Promise<GenerationRecord> {
     const data = await this.fetchRaw();
 
     const newRecord: GenerationRecord = {
@@ -79,36 +79,37 @@ class MajdCloudEngine {
       id: 'rec_' + Date.now(),
       timestamp: Date.now(),
       status: 'success',
-      engine: 'Majd Cloud Direct v9'
+      engine: 'Majd Cloud Direct v10 (Strict)'
     };
 
-    // إضافة السجل في البداية وتقليص العدد لـ 10 فقط بسبب حجم الـ Base64 الكبير
+    // تقليص العدد لـ 10 سجلات لضمان استقرار الرفع السحابي مع ملفات Base64
     data.records = [newRecord, ...data.records].slice(0, 10);
     
     const success = await this.pushToCloud(data);
-    if (!success) throw new Error("Failed to persist to cloud storage");
+    if (!success) throw new Error("Cloud Persistence Failed");
     
+    console.log("Record saved to cloud successfully");
     return newRecord;
   }
 
-  async getUserRecords(userId: string) {
+  async getUserRecords(userId: string): Promise<GenerationRecord[]> {
     const data = await this.fetchRaw();
-    return data.records.filter(r => r.user_id === userId);
+    return data.records.filter((r: GenerationRecord) => r.user_id === userId);
   }
 
-  async getAllRecords() {
+  async getAllRecords(): Promise<GenerationRecord[]> {
     const data = await this.fetchRaw();
     return data.records;
   }
 
   async getGlobalStats(): Promise<GlobalStats> {
     const data = await this.fetchRaw();
-    const uniqueUsers = new Set(data.sessions.map(s => s.user_id)).size || 1;
+    const uniqueUsers = new Set(data.sessions.map((s: SessionLog) => s.user_id)).size || 1;
 
     return {
       total_users: uniqueUsers,
       total_records: data.records.length,
-      total_duration: data.records.reduce((a, b) => a + (b.duration || 0), 0),
+      total_duration: data.records.reduce((acc: number, curr: GenerationRecord) => acc + (curr.duration || 0), 0),
       success_rate: 100,
       avg_voices_per_user: data.records.length / uniqueUsers,
       avg_session_duration: 5,
