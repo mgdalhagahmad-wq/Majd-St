@@ -39,12 +39,13 @@ const AdminDashboard: React.FC<{
   records: GenerationRecord[],
   onRefresh: () => void
 }> = ({ onClose, stats, records, onRefresh }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'records' | 'traffic'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'records'>('overview');
   const [filter, setFilter] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Poll for new user data every 10 seconds while admin dashboard is open
   useEffect(() => {
-    const interval = setInterval(() => { onRefresh(); }, 15000); // Auto-sync live feed every 15s
+    const interval = setInterval(() => { onRefresh(); }, 10000);
     return () => clearInterval(interval);
   }, [onRefresh]);
 
@@ -56,7 +57,8 @@ const AdminDashboard: React.FC<{
 
   const filteredRecords = records.filter(r => 
     r.text.toLowerCase().includes(filter.toLowerCase()) || 
-    r.user_id?.toLowerCase().includes(filter.toLowerCase())
+    r.user_id?.toLowerCase().includes(filter.toLowerCase()) ||
+    r.selection.dialect.includes(filter)
   );
 
   return (
@@ -65,13 +67,13 @@ const AdminDashboard: React.FC<{
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
           <div className="flex items-center gap-6">
             <div>
-              <h2 className="text-3xl font-bold tech-logo">Majd CONTROL HUB</h2>
+              <h2 className="text-3xl font-bold tech-logo">Majd GLOBAL MONITOR</h2>
               <div className="flex items-center gap-3 mt-2">
                 <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
                 </span>
-                <p className="text-green-500 text-[10px] uppercase font-black tracking-widest">Global Server Monitor: LIVE DATA</p>
+                <p className="text-cyan-400 text-[10px] uppercase font-black tracking-widest">Global Cloud Sync: ACTIVE</p>
               </div>
             </div>
             <button onClick={handleRefresh} className={`p-4 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:text-white transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
@@ -82,30 +84,27 @@ const AdminDashboard: React.FC<{
           <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/10">
             {['overview', 'records'].map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === tab ? 'brand-bg text-white shadow-xl scale-105' : 'text-white/30 hover:text-white/60'}`}>
-                {tab === 'overview' ? 'إحصائيات السيرفر' : 'سجل المستخدمين المباشر'}
+                {tab === 'overview' ? 'إحصائيات العالم' : 'سجل كافة المستخدمين'}
               </button>
             ))}
           </div>
 
-          <button onClick={onClose} className="p-4 px-10 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all font-bold text-xs uppercase tracking-widest">خروج من HUB</button>
+          <button onClick={onClose} className="p-4 px-10 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all font-bold text-xs uppercase tracking-widest">خروج آمن</button>
         </div>
 
         {activeTab === 'overview' && stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
-              { label: 'المستخدمون النشطون', val: stats.total_users, sub: 'Active Connections', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
-              { label: 'إجمالي التسجيلات العالمية', val: stats.total_records, sub: 'Cloud DB Size', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4' },
-              { label: 'ساعات العمل التراكمية', val: (stats.total_duration / 3600).toFixed(2), sub: 'Global Audio Hours', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
-              { label: 'حالة الاستقرار', val: stats.success_rate + '%', sub: 'Cloud Stability', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
+              { label: 'إجمالي المستخدمين عالمياً', val: stats.total_users, sub: 'Global Connections', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
+              { label: 'إجمالي التسجيلات السحابية', val: stats.total_records, sub: 'Cloud Store Entries', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7' },
+              { label: 'ساعات المعالجة الكلية', val: (stats.total_duration / 3600).toFixed(2), sub: 'Mastered Hours', icon: 'M12 8v4l3 3' },
+              { label: 'استقرار السيرفر العالمي', val: stats.success_rate + '%', sub: 'Uptime 24/7', icon: 'M9 12l2 2 4-4' },
             ].map((card, i) => (
-              <div key={i} className="glass-3d p-10 rounded-[45px] border-white/5 relative group overflow-hidden">
-                <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-30 transition-opacity">
-                  <svg className="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={card.icon} /></svg>
-                </div>
+              <div key={i} className="glass-3d p-10 rounded-[45px] border-white/5 group">
                 <h4 className="text-5xl font-black text-white mb-2">{card.val}</h4>
                 <p className="text-xs text-white/40 font-bold uppercase tracking-widest">{card.label}</p>
                 <div className="mt-6 pt-6 border-t border-white/5">
-                   <p className="text-[9px] text-cyan-400 font-mono tracking-widest">{card.sub}</p>
+                   <p className="text-[9px] text-cyan-400 font-mono tracking-widest uppercase">{card.sub}</p>
                 </div>
               </div>
             ))}
@@ -113,12 +112,11 @@ const AdminDashboard: React.FC<{
         )}
 
         {activeTab === 'records' && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
+          <div className="space-y-8">
              <div className="glass-3d p-8 rounded-[35px] border-cyan-500/20 flex items-center gap-6">
-                <div className="h-12 w-12 rounded-2xl brand-bg flex items-center justify-center text-white"><svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
                 <input 
                   type="text" 
-                  placeholder="تعقب مستخدم محدد، أو ابحث في النصوص المسجلة..." 
+                  placeholder="ابحث عن تسجيل معين أو مستخدم محدد في القاعدة العالمية..." 
                   className="flex-1 bg-transparent border-none outline-none text-white text-right font-arabic text-2xl"
                   value={filter}
                   onChange={e => setFilter(e.target.value)}
@@ -126,44 +124,34 @@ const AdminDashboard: React.FC<{
              </div>
              <div className="grid grid-cols-1 gap-6">
               {filteredRecords.map(r => (
-                <div key={r.id} className="glass-3d p-10 rounded-[50px] flex flex-col lg:flex-row items-center justify-between gap-10 border-white/5 hover:border-indigo-500/30 transition-all group">
+                <div key={r.id} className="glass-3d p-10 rounded-[50px] flex flex-col lg:flex-row items-center justify-between gap-10 border-white/5 hover:border-cyan-500/40 transition-all">
                   <div className="text-right flex-1 space-y-6">
                     <div className="flex items-center gap-4 flex-row-reverse flex-wrap">
-                      <span className="px-5 py-2 rounded-2xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">DIALECT: {r.selection.dialect}</span>
-                      <span className="px-5 py-2 rounded-2xl bg-green-500/10 text-green-400 text-[10px] font-black border border-green-500/20 flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                        {r.user_id}
-                      </span>
-                      <span className="text-white/20 text-[10px] font-mono">TRACKING_ID: {r.id}</span>
+                      <span className="px-5 py-2 rounded-2xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">{r.selection.dialect}</span>
+                      <span className="px-5 py-2 rounded-2xl bg-green-500/10 text-green-400 text-[10px] font-black border border-green-500/20">USER: {r.user_id}</span>
+                      <span className="text-white/20 text-[10px] font-mono">REC_ID: {r.id}</span>
                     </div>
                     <p className="text-2xl text-white font-arabic leading-relaxed">"{r.text}"</p>
-                    <div className="flex items-center gap-6 text-[10px] text-white/20 font-mono">
-                      <span>DATETIME: {new Date(r.timestamp).toLocaleString('ar-EG')}</span>
-                      <span>DURATION: {r.duration.toFixed(2)}s</span>
-                    </div>
+                    <div className="text-[10px] text-white/20 font-mono">TIMESTAMP: {new Date(r.timestamp).toLocaleString('ar-EG')}</div>
                   </div>
                   <div className="flex items-center gap-6 bg-black/40 p-8 rounded-[40px] border border-white/5">
                     <button 
-                      onClick={() => { if(r.audio_url !== '#') { const a = new Audio(r.audio_url); a.play(); } else { alert('هذا سجل حي من مستخدم آخر (Mock). في النسخة المتصلة بالسيرفر الحقيقي، سيتم تشغيل الصوت فوراً.'); } }} 
-                      className="h-20 w-20 rounded-full brand-bg text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform active:scale-95"
+                      onClick={() => { if(r.audio_url && r.audio_url !== '#') { const a = new Audio(r.audio_url); a.play(); } else { alert('رابط الصوت غير متوفر لهذا السجل القديم.'); } }} 
+                      className="h-20 w-20 rounded-full brand-bg text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform"
                     >
                       <svg className="w-10 h-10 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </button>
-                    <a 
-                      href={r.audio_url !== '#' ? r.audio_url : '#'} 
-                      onClick={(e) => r.audio_url === '#' && e.preventDefault()}
-                      download={`majd_spy_record_${r.id}.wav`} 
-                      className="p-6 rounded-full bg-white/5 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all border border-white/10"
-                      title="تحميل هذا التسجيل"
-                    >
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    </a>
+                    {r.audio_url && r.audio_url !== '#' && (
+                      <a href={r.audio_url} download={`majd_global_${r.id}.wav`} className="p-6 rounded-full bg-white/5 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all border border-white/10">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
               {filteredRecords.length === 0 && (
                 <div className="py-40 text-center opacity-10">
-                   <p className="text-3xl font-black uppercase tracking-[1em]">Scanning Global Traffic...</p>
+                   <p className="text-3xl font-black uppercase tracking-[0.6em]">No Records Found in Global Cloud</p>
                 </div>
               )}
              </div>
@@ -188,13 +176,13 @@ const PasswordModal: React.FC<{ onVerify: () => void, onClose: () => void, isLoa
         <div className="glass-3d p-16 rounded-[60px] text-center space-y-12 border-white/20">
           <div className="w-24 h-24 brand-bg rounded-[35px] mx-auto flex items-center justify-center text-white shadow-[0_0_80px_rgba(139,92,246,0.6)]"><svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></div>
           <div className="space-y-4">
-             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">بوابة المراقبة المركزية</h2>
-             <p className="text-white/20 text-[10px] uppercase tracking-[0.4em] font-bold">Authorized Admin Access Only</p>
+             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">بوابة التحكم العالمية</h2>
+             <p className="text-white/20 text-[10px] uppercase tracking-[0.4em] font-bold italic">AUTHORIZED ACCESS ONLY</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-8">
             <input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-3xl py-7 text-center text-4xl tracking-[0.8em] text-cyan-400 font-mono focus:outline-none focus:border-cyan-500/50 shadow-inner" placeholder="••••" />
-            <button type="submit" disabled={isLoading} className="w-full brand-bg text-white font-black py-6 rounded-3xl text-xl shadow-2xl hover:scale-[1.02] transition-all">{isLoading ? 'Connecting to Global Hub...' : 'فتح البوابة المركزية'}</button>
-            <button type="button" onClick={onClose} className="text-white/20 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">تجاهل الدخول</button>
+            <button type="submit" disabled={isLoading} className="w-full brand-bg text-white font-black py-6 rounded-3xl text-xl shadow-2xl hover:scale-[1.02] transition-all">{isLoading ? 'Connecting to Master Cloud...' : 'فتح البوابة المركزية'}</button>
+            <button type="button" onClick={onClose} className="text-white/20 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">إغلاق</button>
           </form>
         </div>
       </div>
@@ -227,7 +215,15 @@ const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const userId = useMemo(() => localStorage.getItem('majd_session_v3') || 'User', []);
+  // Use a stable userId for the browser session
+  const userId = useMemo(() => {
+    let id = localStorage.getItem('majd_global_user_id');
+    if (!id) {
+      id = 'User_' + Math.random().toString(36).substr(2, 6);
+      localStorage.setItem('majd_global_user_id', id);
+    }
+    return id;
+  }, []);
 
   useEffect(() => {
     if (showIntro) {
@@ -245,7 +241,10 @@ const App: React.FC = () => {
     setIsAdminLoading(true);
     try {
       const [stats, all] = await Promise.all([api.getGlobalStats(), api.getAllRecordsAdmin()]);
-      setGlobalStats(stats); setAllRecords(all); setShowAdmin(true); setIsVerifying(false);
+      setGlobalStats(stats); 
+      setAllRecords(all); 
+      setShowAdmin(true); 
+      setIsVerifying(false);
     } finally { setIsAdminLoading(false); }
   };
 
@@ -277,11 +276,12 @@ const App: React.FC = () => {
       const record = await api.saveRecord({
         text: textToUse,
         user_id: userId,
-        selection: { dialect: selectedDialect.title, type: selectedType, field: 'Studio', controls: voiceControls },
+        selection: { dialect: selectedDialect.title, type: selectedType, field: 'Global Studio', controls: voiceControls },
         audio_url: url,
         duration: duration
       });
-      setCurrentResult(record); setHistory(prev => [record, ...prev]);
+      setCurrentResult(record); 
+      setHistory(prev => [record, ...prev]);
       if (audioRef.current) { audioRef.current.src = url; audioRef.current.play(); setIsPlaying(true); }
     } finally { setIsGenerating(false); }
   };
@@ -290,7 +290,7 @@ const App: React.FC = () => {
     <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
       <div className="text-center animate-in fade-in zoom-in duration-1000">
         <h1 className="tech-logo text-7xl md:text-9xl tracking-[0.5em]">Majd</h1>
-        <p className="text-white/20 text-xs tracking-[1.5em] uppercase font-bold animate-pulse mt-8">Establishing Secure Cloud Session</p>
+        <p className="text-white/20 text-xs tracking-[1.5em] uppercase font-bold animate-pulse mt-8">Connecting to Master Cloud...</p>
       </div>
     </div>
   );
@@ -306,7 +306,7 @@ const App: React.FC = () => {
       <div className="fixed top-8 left-8 z-50">
         <button onClick={() => setIsVerifying(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs uppercase tracking-widest flex items-center gap-3 hover:scale-105 transition-all">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          البوابة المركزية
+          البوابة العالمية
         </button>
       </div>
 
@@ -379,18 +379,18 @@ const App: React.FC = () => {
             {isGenerating ? (
               <div className="flex items-center gap-4">
                 <div className="animate-spin h-10 w-10 border-4 border-t-white border-white/20 rounded-full" />
-                <span className="text-sm font-mono tracking-tighter uppercase opacity-40">Broadcasting to Majd Cloud...</span>
+                <span className="text-sm font-mono tracking-tighter uppercase opacity-40">Syncing to Master Cloud...</span>
               </div>
-            ) : 'بدء توليد الأداء (Master Cloud)'}
+            ) : 'بدء توليد الأداء (Cloud Master)'}
           </button>
         </section>
 
         {currentResult && (
           <section className="glass-3d p-16 rounded-[60px] border-cyan-500/20 animate-in zoom-in duration-1000 text-center space-y-12">
              <div className="space-y-2">
-                <div className="text-xs text-green-500 font-bold uppercase tracking-[0.2em] mb-4">Cloud Sync Successful</div>
+                <div className="text-xs text-green-500 font-bold uppercase tracking-[0.2em] mb-4">Cloud Data Synchronized</div>
                 <h3 className="text-4xl font-bold brand-text">MASTER OUTPUT READY</h3>
-                <p className="text-[10px] text-white/20 uppercase font-mono">Server ID: {currentResult.id}</p>
+                <p className="text-[10px] text-white/20 uppercase font-mono">Cloud Record ID: {currentResult.id}</p>
              </div>
              <div className="w-full max-w-2xl p-12 rounded-[50px] bg-black/50 mx-auto space-y-10 border border-white/5">
                 <button onClick={() => { if(isPlaying) audioRef.current?.pause(); else audioRef.current?.play(); setIsPlaying(!isPlaying); }} className="h-24 w-24 rounded-full brand-bg text-white flex items-center justify-center mx-auto shadow-2xl hover:scale-110 transition-transform">
@@ -399,11 +399,11 @@ const App: React.FC = () => {
                 <div className="flex justify-center gap-4">
                   <a 
                     href={currentResult.audio_url} 
-                    download={`majd_voice_record.wav`}
+                    download={`majd_voice_cloud.wav`}
                     className="flex items-center gap-3 px-10 py-5 rounded-3xl bg-white/5 border border-white/10 text-cyan-400 font-black text-sm hover:bg-cyan-400 hover:text-black transition-all shadow-xl"
                   >
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    تحميل المنتج النهائي (WAV)
+                    تحميل الملف (WAV)
                   </a>
                 </div>
              </div>
