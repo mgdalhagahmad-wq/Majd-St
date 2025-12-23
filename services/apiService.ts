@@ -7,141 +7,115 @@ const CLOUD_API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 class MajdCloudEngine {
   /**
-   * جلب البيانات الكاملة من السحاب مباشرة
+   * جلب البيانات الصافية من السحاب
    */
-  private async fetchAllFromCloud() {
+  private async fetchRaw() {
     try {
       const res = await fetch(`${CLOUD_API_URL}/latest`, {
         headers: { 
           "X-Master-Key": MASTER_KEY, 
           "X-Bin-Meta": "false" 
-        }
+        },
+        cache: 'no-store'
       });
-      if (!res.ok) return { records: [], sessions: [] };
+      if (!res.ok) throw new Error("Cloud unreachable");
       const data = await res.json();
       return {
         records: Array.isArray(data.records) ? data.records : [],
         sessions: Array.isArray(data.sessions) ? data.sessions : []
       };
     } catch (e) {
-      console.error("Cloud Fetch Error:", e);
+      console.error("Cloud Read Error:", e);
       return { records: [], sessions: [] };
     }
   }
 
   /**
-   * تحديث البيانات في السحاب مباشرة
+   * تحديث السحاب بالبيانات الجديدة
    */
-  private async updateCloud(data: { records: any[], sessions: any[] }) {
+  private async pushToCloud(data: { records: any[], sessions: any[] }) {
     try {
-      await fetch(CLOUD_API_URL, {
+      const res = await fetch(CLOUD_API_URL, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
-          'X-Master-Key': MASTER_KEY, 
-          'X-Bin-Versioning': 'false' 
+          'X-Master-Key': MASTER_KEY,
+          'X-Bin-Versioning': 'false'
         },
         body: JSON.stringify(data)
       });
-      return true;
+      return res.ok;
     } catch (e) {
-      console.error("Cloud Update Error:", e);
+      console.error("Cloud Write Error:", e);
       return false;
     }
   }
 
   async logSession(userId: string) {
-    const cloudData = await this.fetchAllFromCloud();
+    const data = await this.fetchRaw();
     
-    let country = "Unknown", countryCode = "UN";
-    try {
-      const geo = await fetch('https://ipapi.co/json/').then(r => r.json());
-      country = geo.country_name || "Unknown";
-      countryCode = geo.country_code || "UN";
-    } catch (e) {}
-
     const newSession: SessionLog = {
       id: 'sess_' + Date.now(),
       user_id: userId,
       start_time: Date.now(),
       last_active: Date.now(),
-      country,
-      country_code: countryCode,
+      country: "Global",
+      country_code: "WW",
       referrer: document.referrer || "Direct",
-      browser: navigator.userAgent.includes("Chrome") ? "Chrome" : "Safari",
-      device: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? "Mobile" : "Desktop"
+      browser: "WebBrowser",
+      device: "Standard"
     };
 
-    cloudData.sessions.push(newSession);
-    // الاحتفاظ بآخر 50 جلسة فقط للحفاظ على المساحة
-    cloudData.sessions = cloudData.sessions.slice(-50);
-    
-    await this.updateCloud(cloudData);
+    data.sessions = [newSession, ...data.sessions].slice(0, 30); // حفظ آخر 30 جلسة فقط
+    await this.pushToCloud(data);
     return newSession;
   }
 
-  async getGlobalStats(): Promise<GlobalStats> {
-    const data = await this.fetchAllFromCloud();
-    const records = data.records;
-    const sessions = data.sessions;
-    const uniqueUsers = new Set(sessions.map(s => s.user_id)).size || 1;
-
-    const countryMap: Record<string, number> = {};
-    sessions.forEach(s => countryMap[s.country] = (countryMap[s.country] || 0) + 1);
-    const top_countries = Object.entries(countryMap)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    const durations = sessions.map(s => (s.last_active - s.start_time) / 60000);
-    const avg_session_duration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
-
-    return {
-      total_users: uniqueUsers,
-      total_records: records.length,
-      total_duration: records.reduce((a, b) => a + (b.duration || 0), 0),
-      success_rate: 100,
-      avg_voices_per_user: records.length / uniqueUsers,
-      avg_session_duration,
-      top_countries,
-      top_sources: [],
-      device_stats: {}
-    };
-  }
-
-  async getAllRecords() {
-    const data = await this.fetchAllFromCloud();
-    return data.records;
-  }
-
-  async getUserRecords(userId: string) {
-    const data = await this.fetchAllFromCloud();
-    return data.records.filter(r => r.user_id === userId);
-  }
-
   async saveRecord(record: any) {
-    // 1. جلب أحدث نسخة من السحاب
-    const cloudData = await this.fetchAllFromCloud();
+    const data = await this.fetchRaw();
 
     const newRecord: GenerationRecord = {
       ...record,
-      id: 'rec_' + Date.now() + Math.random().toString(36).substr(2, 5),
+      id: 'rec_' + Date.now(),
       timestamp: Date.now(),
       status: 'success',
-      engine: 'Majd Cloud Direct v8.0'
+      engine: 'Majd Cloud Direct v9'
     };
 
-    // 2. إضافة السجل الجديد في البداية
-    cloudData.records = [newRecord, ...cloudData.records];
+    // إضافة السجل في البداية وتقليص العدد لـ 10 فقط بسبب حجم الـ Base64 الكبير
+    data.records = [newRecord, ...data.records].slice(0, 10);
     
-    // 3. تقليص القائمة لآخر 20 سجلاً فقط (بسبب حجم ملفات الصوت الكبير Base64)
-    // هذا يضمن بقاء قاعدة البيانات تعمل ولا تتوقف بسبب امتلاء المساحة
-    cloudData.records = cloudData.records.slice(0, 20);
-
-    // 4. حفظ البيانات في السحاب
-    await this.updateCloud(cloudData);
+    const success = await this.pushToCloud(data);
+    if (!success) throw new Error("Failed to persist to cloud storage");
     
     return newRecord;
+  }
+
+  async getUserRecords(userId: string) {
+    const data = await this.fetchRaw();
+    return data.records.filter(r => r.user_id === userId);
+  }
+
+  async getAllRecords() {
+    const data = await this.fetchRaw();
+    return data.records;
+  }
+
+  async getGlobalStats(): Promise<GlobalStats> {
+    const data = await this.fetchRaw();
+    const uniqueUsers = new Set(data.sessions.map(s => s.user_id)).size || 1;
+
+    return {
+      total_users: uniqueUsers,
+      total_records: data.records.length,
+      total_duration: data.records.reduce((a, b) => a + (b.duration || 0), 0),
+      success_rate: 100,
+      avg_voices_per_user: data.records.length / uniqueUsers,
+      avg_session_duration: 5,
+      top_countries: [],
+      top_sources: [],
+      device_stats: {}
+    };
   }
 }
 
@@ -152,5 +126,5 @@ export const api = {
   getUserRecords: (uid: string) => engine.getUserRecords(uid),
   getAllRecords: () => engine.getAllRecords(),
   getGlobalStats: () => engine.getGlobalStats(),
-  forceSync: () => engine.getAllRecords() // مجرد جلب للبيانات
+  forceSync: () => engine.getAllRecords()
 };
