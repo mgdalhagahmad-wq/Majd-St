@@ -7,11 +7,13 @@ import { api } from './services/apiService';
 
 const WAITING_MESSAGES = [
   "ثانية واحدة.. Majd بيظبط الأوتوتيون.. 🎤",
-  "حقك عليا يا نجم، مهندس الصوت لسه بيسخن الميكروفون.. 🔥",
-  "بننقي أحسن نبرة تليق بمقامك العالي.. ✨",
-  "خلاص هانت، بنمسح التراب من على السماعات.. 🧹",
-  "الذكاء الاصطناعي بيشرب قهوته وهيطلعلك الصوت دلوقتي.. ☕",
-  "مجد بيراجع النص كلمة كلمة عشان ميبقاش فيه غلطة.. 📝"
+  "مهندس الصوت شكلو نايم ولا إيه؟ هصحيهولك حالاً! 😴",
+  "يالا معلش اتأخرنا عليك.. بننقي أحسن طبقة صوت.. ✨",
+  "بنمسح التراب من على الميكروفونات.. 🧹",
+  "الذكاء الاصطناعي بيشرب قهوته وجاي في الطريق.. ☕",
+  "مجد بيراجع النص كلمة كلمة عشان ميبقاش فيه غلطة.. 📝",
+  "خلاص هانت، الصوت بيتحمل على السحابة.. ☁️",
+  "بنعمل ميكس وماسترينج عشان النتيجة تبهرك.. 🎧"
 ];
 
 const RatingStars: React.FC<{ rating: number, onRate?: (r: number) => void, interactive?: boolean }> = ({ rating, onRate, interactive }) => (
@@ -92,6 +94,7 @@ const App: React.FC = () => {
   const [refinedText, setRefinedText] = useState('');
   const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentWaitMsgIndex, setCurrentWaitMsgIndex] = useState(0);
   const [currentResult, setCurrentResult] = useState<GenerationRecord | null>(null);
 
   const availableProfiles = useMemo(() => {
@@ -116,6 +119,18 @@ const App: React.FC = () => {
     };
     init();
   }, [userId]);
+
+  // نظام تبديل رسائل الانتظار
+  useEffect(() => {
+    let interval: any;
+    if (isGenerating || isPreprocessing) {
+      setCurrentWaitMsgIndex(0);
+      interval = setInterval(() => {
+        setCurrentWaitMsgIndex(prev => (prev + 1) % WAITING_MESSAGES.length);
+      }, 2500);
+    }
+    return () => clearInterval(interval);
+  }, [isGenerating, isPreprocessing]);
 
   const toggleAudio = (id: string, url: string) => {
     if (playingId === id) { audioRef.current?.pause(); setPlayingId(null); }
@@ -220,11 +235,18 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
       {(isGenerating || isPreprocessing) && (
-        <div className="fixed inset-0 z-[1000] bg-black/90 flex flex-col items-center justify-center text-center">
-          <h2 className="tech-logo text-7xl animate-pulse">Majd</h2>
-          <p className="text-xl font-bold mt-12">
-            {isPreprocessing ? "يا برنس بنظبطلك النص بلمسة سحرية.. 🪄" : WAITING_MESSAGES[Math.floor(Math.random()*WAITING_MESSAGES.length)]}
-          </p>
+        <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center text-center p-8">
+          <h2 className="tech-logo text-7xl animate-pulse mb-12">Majd</h2>
+          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 max-w-lg w-full transform transition-all animate-bounce">
+             <p className="text-2xl font-bold text-white leading-relaxed">
+               {WAITING_MESSAGES[currentWaitMsgIndex]}
+             </p>
+          </div>
+          <div className="mt-8 flex gap-2">
+             <div className="w-3 h-3 bg-cyan-500 rounded-full animate-bounce delay-75"></div>
+             <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce delay-150"></div>
+             <div className="w-3 h-3 bg-cyan-500 rounded-full animate-bounce delay-200"></div>
+          </div>
         </div>
       )}
       
@@ -294,7 +316,7 @@ const App: React.FC = () => {
              </button>
           </div>
 
-          <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8">توليد ورفع الصوت </button>
+          <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8">توليد ورفع الصوت</button>
         </section>
 
         {currentResult && (
@@ -314,13 +336,13 @@ const App: React.FC = () => {
 
         <section className="glass-3d p-12 rounded-[50px] border border-cyan-500/10">
           <div className="max-w-4xl mx-auto space-y-12">
-            <div className="text-center space-y-4"><h3 className="text-3xl font-black brand-text">رأيك يهمنا  ! ⭐</h3></div>
+            <div className="text-center space-y-4"><h3 className="text-3xl font-black brand-text">رأيك يهمنا ! ⭐</h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
               <div className="space-y-6">
                 {!feedbackSent ? (
                   <div className="space-y-6 glass-3d p-8 rounded-3xl">
                     <div className="flex justify-center"><RatingStars rating={feedbackRating} interactive onRate={setFeedbackRating} /></div>
-                    <textarea className="w-full p-6 rounded-3xl bg-white/5 border border-white/10 outline-none text-right text-sm h-32" placeholder="رائيك بالمنصة؟" value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} />
+                    <textarea className="w-full p-6 rounded-3xl bg-white/5 border border-white/10 outline-none text-right text-sm h-32" placeholder="رأيك بالمنصة؟" value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} />
                     <button onClick={handleSubmitFeedback} disabled={isSubmittingFeedback} className="w-full py-4 rounded-2xl brand-bg text-white font-bold">{isSubmittingFeedback ? "جاري الإرسال ..." : "إرسال التقييم"}</button>
                   </div>
                 ) : <div className="py-10 text-center"><h4 className="text-2xl font-bold text-cyan-400">وصل يا بطل! ❤️</h4></div>}
