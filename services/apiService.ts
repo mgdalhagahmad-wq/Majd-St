@@ -1,128 +1,188 @@
 
-import { GenerationRecord, UserProfile, GlobalStats } from '../types';
+import { GenerationRecord, GlobalStats, SessionLog } from '../types';
 
-/**
- * MAJD GLOBAL CLOUD ENGINE (v5.6 - USER PRIVATE CLOUD)
- * تم تحديث الإعدادات لتعمل مباشرة مع حسابك الخاص.
- */
-
-// معرف الصندوق (Bin ID) الخاص بك
 const BIN_ID = "694ac32fae596e708facad29"; 
-
-// مفتاح الماستر (Master Key) الخاص بك
 const MASTER_KEY = "$2a$10$O0K2vjXYuVRdqb551DVBO.Qhd8f11FvdPzXFiGnZp5K74I8m.UP8O"; 
-
 const CLOUD_API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 class MajdCloudEngine {
   private recordsCache: GenerationRecord[] = [];
+  private sessionsCache: SessionLog[] = [];
+  private isSyncing = false;
 
   constructor() {
-    this.sync();
+    this.loadFromLocal();
+    this.initialCloudSync();
   }
 
-  private async sync(): Promise<GenerationRecord[]> {
+  private loadFromLocal() {
+    try {
+      this.recordsCache = JSON.parse(localStorage.getItem('majd_records') || '[]');
+      this.sessionsCache = JSON.parse(localStorage.getItem('majd_sessions') || '[]');
+    } catch (e) {
+      console.error("Local load failed", e);
+    }
+  }
+
+  private saveToLocal() {
+    try {
+      localStorage.setItem('majd_records', JSON.stringify(this.recordsCache));
+      localStorage.setItem('majd_sessions', JSON.stringify(this.sessionsCache));
+    } catch (e) {
+      console.warn("Local storage full, possibly due to large audio files.");
+    }
+  }
+
+  private async initialCloudSync() {
     try {
       const res = await fetch(`${CLOUD_API_URL}/latest`, {
-        method: 'GET',
-        headers: { 
-          "X-Master-Key": MASTER_KEY,
-          "X-Bin-Meta": "false" // نطلب البيانات مباشرة بدون الميتا-داتا
-        }
+        headers: { "X-Master-Key": MASTER_KEY, "X-Bin-Meta": "false" }
       });
-      
-      if (!res.ok) throw new Error(`Sync Error: ${res.status}`);
-      
+      if (!res.ok) throw new Error("Cloud fetch failed");
       const data = await res.json();
       
-      // JSONBin v3 قد يعيد البيانات بشكل مباشر أو مغلفة في حقل record
-      let remoteRecords = [];
-      if (data.records) {
-        remoteRecords = data.records;
-      } else if (data.record && data.record.records) {
-        remoteRecords = data.record.records;
-      } else if (Array.isArray(data)) {
-        remoteRecords = data;
-      }
+      // دمج البيانات السحابية مع المحلية (تجنب التكرار)
+      const cloudRecords = Array.isArray(data.records) ? data.records : [];
+      const cloudSessions = Array.isArray(data.sessions) ? data.sessions : [];
       
-      this.recordsCache = Array.isArray(remoteRecords) ? remoteRecords : [];
-      localStorage.setItem('majd_v5_cache', JSON.stringify(this.recordsCache));
-      return this.recordsCache;
+      const localIds = new Set(this.recordsCache.map(r => r.id));
+      const missingFromLocal = cloudRecords.filter((r: any) => !localIds.has(r.id));
+      
+      this.recordsCache = [...this.recordsCache, ...missingFromLocal].sort((a, b) => b.timestamp - a.timestamp);
+      this.sessionsCache = [...this.sessionsCache, ...cloudSessions];
+      
+      this.saveToLocal();
     } catch (e) {
-      console.warn("Cloud offline, using backup.", e);
-      const local = localStorage.getItem('majd_v5_cache');
-      return local ? JSON.parse(local) : [];
+      console.log("Working in offline mode (Local-only)");
     }
   }
 
-  private async commit(allRecords: GenerationRecord[]) {
+  private async commitToCloud() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
+    
     try {
-      const res = await fetch(CLOUD_API_URL, {
+      // JSONBin قد يرفض الطلبات الضخمة جداً، لذا نقوم بتنظيف السجلات القديمة إذا لزم الأمر في السحاب فقط
+      const dataToSync = {
+        records: this.recordsCache.slice(0, 50), // مزامنة آخر 50 سجل فقط للسحاب للحفاظ على الأداء
+        sessions: this.sessionsCache.slice(-100)
+      };
+
+      await fetch(CLOUD_API_URL, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': MASTER_KEY,
-          'X-Bin-Versioning': 'false' // لا نريد إنشاء نسخ قديمة لتوفير المساحة
+        headers: { 
+          'Content-Type': 'application/json', 
+          'X-Master-Key': MASTER_KEY, 
+          'X-Bin-Versioning': 'false' 
         },
-        body: JSON.stringify({ records: allRecords })
+        body: JSON.stringify(dataToSync)
       });
-      
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Commit failed: ${res.status} - ${err}`);
-      }
-      
-      this.recordsCache = allRecords;
-      localStorage.setItem('majd_v5_cache', JSON.stringify(allRecords));
-      console.log("Cloud synced successfully.");
     } catch (e) {
-      console.error("Cloud update failed.", e);
+      console.warn("Cloud sync deferred: Network issues or payload size limit.");
+    } finally {
+      this.isSyncing = false;
     }
   }
 
-  async handle(endpoint: string, method: string, body?: any): Promise<any> {
-    const records = await this.sync();
+  async logSession(userId: string) {
+    let country = "Unknown", countryCode = "UN";
+    try {
+      const geo = await fetch('https://ipapi.co/json/').then(r => r.json());
+      country = geo.country_name || "Unknown";
+      countryCode = geo.country_code || "UN";
+    } catch (e) {}
 
-    if (endpoint === '/api/stats') {
-      const totalDur = records.reduce((acc, r) => acc + (r.duration || 0), 0);
-      const uniqueUsers = new Set(records.map(r => r.user_id)).size;
-      return {
-        total_users: Math.max(uniqueUsers, 1),
-        total_records: records.length,
-        total_duration: totalDur,
-        success_rate: 100
-      };
+    const userAgent = navigator.userAgent;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+    const browser = userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Other";
+
+    const newSession: SessionLog = {
+      id: 'sess_' + Date.now(),
+      user_id: userId,
+      start_time: Date.now(),
+      last_active: Date.now(),
+      country,
+      country_code: countryCode,
+      referrer: document.referrer || "Direct",
+      browser,
+      device: isMobile ? "Mobile" : "Desktop"
+    };
+
+    this.sessionsCache.push(newSession);
+    this.saveToLocal();
+    this.commitToCloud();
+    return newSession;
+  }
+
+  async updateActivity(sessionId: string) {
+    const sess = this.sessionsCache.find(s => s.id === sessionId);
+    if (sess) {
+      sess.last_active = Date.now();
+      this.saveToLocal();
     }
+  }
 
-    if (endpoint === '/api/records') {
-      if (body?.isAdmin) return records;
-      return records.filter(r => r.user_id === body.userId);
-    }
+  async getGlobalStats(): Promise<GlobalStats> {
+    const records = this.recordsCache;
+    const sessions = this.sessionsCache;
+    const uniqueUsers = new Set(sessions.map(s => s.user_id)).size || 1;
 
-    if (endpoint === '/api/records/save') {
-      const newRecord: GenerationRecord = { 
-        ...body, 
-        id: 'rec_' + Date.now() + Math.random().toString(36).substr(2, 4),
-        timestamp: Date.now(), 
-        status: 'success',
-        engine: 'Majd Private Cloud v5.6'
-      };
-      
-      const updated = [newRecord, ...records];
-      await this.commit(updated);
-      return newRecord;
-    }
+    const countryMap: Record<string, number> = {};
+    sessions.forEach(s => countryMap[s.country] = (countryMap[s.country] || 0) + 1);
+    const top_countries = Object.entries(countryMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
 
-    return { status: 'ok' };
+    const sourceMap: Record<string, number> = {};
+    sessions.forEach(s => sourceMap[s.referrer] = (sourceMap[s.referrer] || 0) + 1);
+    const top_sources = Object.entries(sourceMap).map(([url, count]) => ({ url, count })).sort((a, b) => b.count - a.count).slice(0, 5);
+
+    const durations = sessions.map(s => (s.last_active - s.start_time) / 60000);
+    const avg_session_duration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+
+    const device_stats: Record<string, number> = { Mobile: 0, Desktop: 0 };
+    sessions.forEach(s => device_stats[s.device] = (device_stats[s.device] || 0) + 1);
+
+    return {
+      total_users: uniqueUsers,
+      total_records: records.length,
+      total_duration: records.reduce((a, b) => a + b.duration, 0),
+      success_rate: 100,
+      avg_voices_per_user: records.length / uniqueUsers,
+      avg_session_duration,
+      top_countries,
+      top_sources,
+      device_stats
+    };
+  }
+
+  async getAllRecords() {
+    return this.recordsCache;
+  }
+
+  async getUserRecords(userId: string) {
+    return this.recordsCache.filter(r => r.user_id === userId);
+  }
+
+  async saveRecord(record: any) {
+    const newRecord: GenerationRecord = {
+      ...record,
+      id: 'rec_' + Date.now(),
+      timestamp: Date.now(),
+      status: 'success',
+      engine: 'Majd Engine v6.1'
+    };
+    this.recordsCache = [newRecord, ...this.recordsCache];
+    this.saveToLocal();
+    this.commitToCloud(); // محاولة مزامنة السجل الجديد
+    return newRecord;
   }
 }
 
-const cloud = new MajdCloudEngine();
-
+const engine = new MajdCloudEngine();
 export const api = {
-  getProfile: () => cloud.handle('/api/auth', 'GET'),
-  saveRecord: (data: any) => cloud.handle('/api/records/save', 'POST', data),
-  getUserRecords: (userId: string) => cloud.handle('/api/records', 'POST', { userId }),
-  getAllRecordsAdmin: () => cloud.handle('/api/records', 'POST', { isAdmin: true }),
-  getGlobalStats: () => cloud.handle('/api/stats', 'GET')
+  logSession: (uid: string) => engine.logSession(uid),
+  updateActivity: (sid: string) => engine.updateActivity(sid),
+  saveRecord: (data: any) => engine.saveRecord(data),
+  getUserRecords: (uid: string) => engine.getUserRecords(uid),
+  getAllRecords: () => engine.getAllRecords(),
+  getGlobalStats: () => engine.getGlobalStats()
 };

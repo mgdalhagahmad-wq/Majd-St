@@ -1,6 +1,6 @@
 {
   "name": "Majd STUDIO VO",
-  "description": "منصة التعليق الصوتي العربي الاحترافية المركزية المدعومة بذكاء Gemini الاصطناعي.",
+  "description": "منصة Majd المتطورة للتعليق الصوتي العربي الاحترافي، مدعومة بتقنيات Gemini للذكاء الاصطناعي.",
   "requestFramePermissions": [
     "microphone"
   ]

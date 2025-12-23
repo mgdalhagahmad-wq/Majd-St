@@ -1,385 +1,403 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { DIALECTS, VOICE_TYPES, STUDIO_CONTROLS, getBaseVoiceForType } from './constants';
-import { GenerationRecord, VoiceControls, UserProfile, GlobalStats } from './types';
+import { DIALECTS, VOICE_TYPES, STUDIO_CONTROLS, getBaseVoiceForType, VoiceProfile } from './constants';
+import { GenerationRecord, VoiceControls, GlobalStats } from './types';
 import { majdService } from './services/geminiService';
 import { api } from './services/apiService';
 
-// --- Sub-Components ---
+// --- المكونات المساعدة ---
+
+const StatCard: React.FC<{ label: string, value: string | number, icon?: string }> = ({ label, value, icon }) => (
+  <div className="admin-card p-6 rounded-3xl space-y-2">
+    <div className="flex justify-between items-start">
+      <span className="text-white/40 text-[10px] font-bold uppercase tracking-wider">{label}</span>
+      <span className="text-cyan-400">{icon}</span>
+    </div>
+    <div className="text-3xl font-black text-white">{value}</div>
+  </div>
+);
 
 const SelectionBlock: React.FC<{ title: string; options: string[]; current: string; set: (s: string) => void; }> = ({ title, options, current, set }) => (
-  <div className="w-full space-y-6">
-    <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-8">{title}</h3>
-    <div className="flex flex-wrap justify-center gap-4">
+  <div className="w-full space-y-4">
+    <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">{title}</h3>
+    <div className="flex flex-wrap justify-center gap-3">
       {options.map(opt => (
-        <button key={opt} onClick={() => set(opt)} className={`px-10 py-4 rounded-[22px] border transition-all duration-500 text-sm font-bold shadow-sm ${current === opt ? 'brand-bg text-white scale-105 shadow-indigo-500/30' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/80'}`}>{opt}</button>
+        <button key={opt} onClick={() => set(opt)} className={`px-8 py-3 rounded-2xl border transition-all duration-300 text-sm font-bold ${current === opt ? 'brand-bg text-white shadow-lg scale-105' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10'}`}>{opt}</button>
       ))}
     </div>
   </div>
 );
 
-const ControlGroup: React.FC<{ id: string; title: string; options: { label: string; desc: string }[]; current: string; onChange: (val: string) => void; }> = ({ id, title, options, current, onChange }) => (
+const ControlGroup: React.FC<{ title: string; options: { label: string; desc: string }[]; current: string; onChange: (val: string) => void; }> = ({ title, options, current, onChange }) => (
   <div className="space-y-4 text-right group">
-    <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] group-hover:text-cyan-500/50 transition-colors">{title}</label>
-    <div className="grid grid-cols-1 gap-3">
+    <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">{title}</label>
+    <div className="grid grid-cols-1 gap-2">
       {options.map(opt => (
-        <button key={opt.label} onClick={() => onChange(opt.label)} className={`relative p-5 rounded-2xl border text-right transition-all duration-500 overflow-hidden ${current === opt.label ? 'border-indigo-500/50 bg-indigo-500/10 text-white shadow-lg' : 'border-white/5 bg-white/5 text-white/30 hover:bg-white/10 hover:border-white/10'}`}>
-          {current === opt.label && <div className="absolute top-0 right-0 w-1.5 h-full bg-cyan-400"></div>}
-          <div className="flex justify-between items-center mb-1 flex-row-reverse"><span className={`text-sm font-bold ${current === opt.label ? 'text-cyan-400' : 'text-white/60'}`}>{opt.label}</span></div>
-          <p className="text-[10px] text-white/30 leading-relaxed line-clamp-2">{opt.desc}</p>
+        <button key={opt.label} onClick={() => onChange(opt.label)} className={`relative p-4 rounded-xl border text-right transition-all ${current === opt.label ? 'border-indigo-500/50 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-white/30 hover:bg-white/10'}`}>
+          <div className="text-xs font-bold mb-1">{opt.label}</div>
+          <p className="text-[9px] opacity-30 leading-relaxed">{opt.desc}</p>
         </button>
       ))}
     </div>
   </div>
 );
 
-const AdminDashboard: React.FC<{ 
-  onClose: () => void, 
-  stats: GlobalStats | null,
-  records: GenerationRecord[],
-  onRefresh: () => void
-}> = ({ onClose, stats, records, onRefresh }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'records'>('overview');
-  const [filter, setFilter] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    const interval = setInterval(() => { onRefresh(); }, 15000);
-    return () => clearInterval(interval);
-  }, [onRefresh]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await onRefresh();
-    setTimeout(() => setIsRefreshing(false), 800);
-  };
-
-  const filteredRecords = records.filter(r => 
-    r.text.toLowerCase().includes(filter.toLowerCase()) || 
-    r.user_id?.toLowerCase().includes(filter.toLowerCase()) ||
-    r.selection?.dialect?.includes(filter)
-  );
-
-  return (
-    <div className="fixed inset-0 z-[200] bg-[#020617] p-4 md:p-12 overflow-y-auto font-arabic animate-in fade-in duration-500" dir="rtl">
-      <div className="max-w-7xl mx-auto space-y-10 pb-20">
-        <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
-          <div className="flex items-center gap-6">
-            <div>
-              <h2 className="text-3xl font-bold tech-logo">Majd GLOBAL MONITOR</h2>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
-                </span>
-                <p className="text-cyan-400 text-[10px] uppercase font-black tracking-widest">Global Cloud Sync: ACTIVE</p>
-              </div>
-            </div>
-            <button onClick={handleRefresh} className={`p-4 rounded-2xl bg-white/5 border border-white/10 text-white/40 hover:text-white transition-all ${isRefreshing ? 'animate-spin' : ''}`}>
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            </button>
-          </div>
-          
-          <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/10">
-            {['overview', 'records'].map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab as any)} className={`px-10 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === tab ? 'brand-bg text-white shadow-xl scale-105' : 'text-white/30 hover:text-white/60'}`}>
-                {tab === 'overview' ? 'إحصائيات العالم' : 'سجل كافة المستخدمين'}
-              </button>
-            ))}
-          </div>
-
-          <button onClick={onClose} className="p-4 px-10 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-all font-bold text-xs uppercase tracking-widest">خروج آمن</button>
-        </div>
-
-        {activeTab === 'overview' && stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            {[
-              { label: 'إجمالي المستخدمين عالمياً', val: stats.total_users, sub: 'Global Connections', icon: '' },
-              { label: 'إجمالي التسجيلات السحابية', val: stats.total_records, sub: 'Cloud Store Entries', icon: '' },
-              { label: 'ساعات المعالجة الكلية', val: (stats.total_duration / 3600).toFixed(2), sub: 'Mastered Hours', icon: '' },
-              { label: 'استقرار السيرفر العالمي', val: stats.success_rate + '%', sub: 'Uptime 24/7', icon: '' },
-            ].map((card, i) => (
-              <div key={i} className="glass-3d p-10 rounded-[45px] border-white/5 group">
-                <h4 className="text-5xl font-black text-white mb-2">{card.val}</h4>
-                <p className="text-xs text-white/40 font-bold uppercase tracking-widest">{card.label}</p>
-                <div className="mt-6 pt-6 border-t border-white/5">
-                   <p className="text-[9px] text-cyan-400 font-mono tracking-widest uppercase">{card.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'records' && (
-          <div className="space-y-8">
-             <div className="glass-3d p-8 rounded-[35px] border-cyan-500/20 flex items-center gap-6">
-                <input 
-                  type="text" 
-                  placeholder="ابحث عن تسجيل معين أو مستخدم محدد في القاعدة العالمية..." 
-                  className="flex-1 bg-transparent border-none outline-none text-white text-right font-arabic text-2xl"
-                  value={filter}
-                  onChange={e => setFilter(e.target.value)}
-                />
-             </div>
-             <div className="grid grid-cols-1 gap-6">
-              {records.length > 0 ? filteredRecords.map(r => (
-                <div key={r.id} className="glass-3d p-10 rounded-[50px] flex flex-col lg:flex-row items-center justify-between gap-10 border-white/5 hover:border-cyan-500/40 transition-all">
-                  <div className="text-right flex-1 space-y-6">
-                    <div className="flex items-center gap-4 flex-row-reverse flex-wrap">
-                      <span className="px-5 py-2 rounded-2xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">{r.selection?.dialect || 'غير محدد'}</span>
-                      <span className="px-5 py-2 rounded-2xl bg-green-500/10 text-green-400 text-[10px] font-black border border-green-500/20">USER: {r.user_id}</span>
-                    </div>
-                    <p className="text-2xl text-white font-arabic leading-relaxed">"{r.text}"</p>
-                  </div>
-                  <div className="flex items-center gap-6 bg-black/40 p-8 rounded-[40px] border border-white/5">
-                    <button 
-                      onClick={() => { if(r.audio_url) { const a = new Audio(r.audio_url); a.play(); } }} 
-                      className="h-20 w-20 rounded-full brand-bg text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform"
-                    >
-                      <svg className="w-10 h-10 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </button>
-                  </div>
-                </div>
-              )) : (
-                <div className="py-40 text-center opacity-10">
-                   <p className="text-3xl font-black uppercase tracking-[0.6em]">No Records in Cloud</p>
-                </div>
-              )}
-             </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const PasswordModal: React.FC<{ onVerify: () => void, onClose: () => void, isLoading: boolean }> = ({ onVerify, onClose, isLoading }) => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '41414141') onVerify(); else { setError(true); setTimeout(() => setError(false), 1000); }
-  };
-  return (
-    <>
-      <div className="fixed inset-0 z-[250] bg-black/95 backdrop-blur-3xl" />
-      <div className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] w-full max-w-lg p-6 font-arabic ${error ? 'animate-shake' : ''}`}>
-        <div className="glass-3d p-16 rounded-[60px] text-center space-y-12 border-white/20">
-          <div className="w-24 h-24 brand-bg rounded-[35px] mx-auto flex items-center justify-center text-white shadow-[0_0_80px_rgba(139,92,246,0.6)]"><svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></div>
-          <div className="space-y-4">
-             <h2 className="text-3xl font-black text-white">بوابة التحكم العالمية</h2>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-3xl py-7 text-center text-4xl tracking-[0.8em] text-cyan-400 font-mono focus:outline-none" placeholder="••••" />
-            <button type="submit" disabled={isLoading} className="w-full brand-bg text-white font-black py-6 rounded-3xl text-xl">{isLoading ? 'Connecting...' : 'فتح البوابة'}</button>
-            <button type="button" onClick={onClose} className="text-white/20 text-xs hover:text-white">إغلاق</button>
-          </form>
-        </div>
-      </div>
-    </>
-  );
-};
-
-// --- Main App ---
-
 const App: React.FC = () => {
-  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro_played') !== 'true');
-  const [showAdmin, setShowAdmin] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isAdminLoading, setIsAdminLoading] = useState(false);
+  const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro') !== 'true');
+  const [isAdminView, setIsAdminView] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [password, setPassword] = useState('');
+  const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [globalRecords, setGlobalRecords] = useState<GenerationRecord[]>([]);
   const [history, setHistory] = useState<GenerationRecord[]>([]);
-  const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
-  const [allRecords, setAllRecords] = useState<GenerationRecord[]>([]);
+  const [userId] = useState(() => {
+    let id = localStorage.getItem('majd_uid');
+    if (!id) { id = 'User_' + Math.random().toString(36).substr(2, 6); localStorage.setItem('majd_uid', id); }
+    return id;
+  });
+
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [selectedDialectId, setSelectedDialectId] = useState<string>(DIALECTS[0].id);
-  const [selectedType, setSelectedType] = useState<string>(VOICE_TYPES[0]);
-  const [selectedGender, setSelectedGender] = useState<string>('ذكر');
-  const [selectedVoiceName, setSelectedVoiceName] = useState<string>('');
+  const [selectedAge, setSelectedAge] = useState<string>(VOICE_TYPES[0]);
+  const [selectedGender, setSelectedGender] = useState<'male' | 'female'>('male');
+  const [selectedProfile, setSelectedProfile] = useState<VoiceProfile | null>(null);
+  
   const [voiceControls, setVoiceControls] = useState<VoiceControls>({ temp: 'دافئ', emotion: 'متوسط', speed: 'متوسطة', depth: 'متوسطة', pitch: 'متوسطة', drama: 'متوسط' });
   
   const [inputText, setInputText] = useState<string>('');
-  const [processedText, setProcessedText] = useState<string>('');
+  const [refinedText, setRefinedText] = useState<string>('');
   const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentResult, setCurrentResult] = useState<GenerationRecord | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const userId = useMemo(() => {
-    let id = localStorage.getItem('majd_global_user_id');
-    if (!id) {
-      id = 'User_' + Math.random().toString(36).substr(2, 6);
-      localStorage.setItem('majd_global_user_id', id);
-    }
-    return id;
-  }, []);
+  const availableProfiles = useMemo(() => {
+    const dialect = DIALECTS.find(d => d.id === selectedDialectId);
+    if (!dialect) return [];
+    return dialect.profiles.filter(p => 
+      p.voiceType === selectedAge && 
+      (p.gender === selectedGender || (selectedGender === 'male' ? p.gender === 'male' : p.gender === 'female'))
+    );
+  }, [selectedDialectId, selectedAge, selectedGender]);
 
   useEffect(() => {
-    if (showIntro) {
-      const t = setTimeout(() => { sessionStorage.setItem('majd_intro_played', 'true'); setShowIntro(false); }, 3500);
-      return () => clearTimeout(t);
+    if (availableProfiles.length > 0) {
+      setSelectedProfile(availableProfiles[0]);
+    } else {
+      setSelectedProfile(null);
     }
-  }, [showIntro]);
-
-  const fetchUserData = async () => {
-    const records = await api.getUserRecords(userId);
-    setHistory(records);
-  };
+  }, [availableProfiles]);
 
   useEffect(() => {
-    fetchUserData();
+    if (showIntro) { setTimeout(() => { sessionStorage.setItem('majd_intro', 'true'); setShowIntro(false); }, 2500); }
+    const init = async () => {
+      await api.logSession(userId);
+      const records = await api.getUserRecords(userId);
+      setHistory(records);
+    };
+    init();
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
   }, [userId]);
 
-  const loadAdminData = async () => {
-    setIsAdminLoading(true);
-    try {
-      const [stats, all] = await Promise.all([api.getGlobalStats(), api.getAllRecordsAdmin()]);
-      setGlobalStats(stats); 
-      setAllRecords(all); 
-      setShowAdmin(true); 
-      setIsVerifying(false);
-    } catch (e) {
-      alert("فشل في جلب البيانات من السحاب. تأكد من إعدادات JSONBin.");
-    } finally { setIsAdminLoading(false); }
+  const toggleAudio = (id: string, data: string) => {
+    if (playingId === id) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      audioRef.current = new Audio(data);
+      audioRef.current.play().catch(e => {
+        console.error(e);
+        alert("تعذر تشغيل هذا الملف الصوتي.");
+      });
+      setPlayingId(id);
+      audioRef.current.onended = () => setPlayingId(null);
+    }
   };
 
-  const selectedDialect = DIALECTS.find(d => d.id === selectedDialectId) || DIALECTS[0];
-  const filteredProfiles = useMemo(() => {
-    const profiles = selectedType === 'كبار السن' ? DIALECTS.flatMap(d => d.profiles) : selectedDialect.profiles;
-    return profiles.filter((p, index, self) => {
-      if (self.findIndex(t => t.name === p.name) !== index) return false;
-      return p.voiceType === selectedType && p.gender === (selectedGender === 'ذكر' ? 'male' : 'female');
-    });
-  }, [selectedType, selectedDialect, selectedGender]);
-
-  const handlePreprocess = async () => {
+  const handleImproveText = async () => {
     if (!inputText.trim()) return;
     setIsPreprocessing(true);
     try {
-      const refined = await majdService.preprocessText(inputText, { dialect: selectedDialect.title, field: 'عام', personality: selectedVoiceName || 'محترف' });
-      setProcessedText(refined);
-    } finally { setIsPreprocessing(false); }
+      const refined = await majdService.preprocessText(inputText, { 
+        dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || 'فصحى', 
+        field: selectedProfile?.category || 'General', 
+        personality: 'Pro' 
+      });
+      setRefinedText(refined);
+    } catch (e) {
+      alert("تعذر تحسين النص حالياً.");
+    } finally {
+      setIsPreprocessing(false);
+    }
   };
 
   const handleGenerate = async () => {
-    const textToUse = processedText || inputText;
-    if (!textToUse.trim()) return;
+    const textToUse = refinedText || inputText;
+    if (!textToUse.trim() || !selectedProfile) return;
     setIsGenerating(true);
     try {
-      const baseVoice = getBaseVoiceForType(selectedType, selectedGender === 'ذكر' ? 'male' : 'female');
-      const { url, duration } = await majdService.generateVoiceOver(textToUse, baseVoice, JSON.stringify(voiceControls));
+      const baseVoice = getBaseVoiceForType(selectedAge, selectedGender);
+      const { dataUrl, duration } = await majdService.generateVoiceOver(
+        textToUse, 
+        baseVoice, 
+        `صوت ${selectedProfile.name} - ${JSON.stringify(voiceControls)}`
+      );
       
       const record = await api.saveRecord({
-        text: textToUse,
+        text: textToUse, 
         user_id: userId,
-        selection: { dialect: selectedDialect.title, type: selectedType, field: 'Global Studio', controls: voiceControls },
-        audio_url: url,
+        selection: { 
+          dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', 
+          type: selectedAge, 
+          field: selectedProfile.category, 
+          controls: voiceControls 
+        },
+        audio_data: dataUrl, 
         duration: duration
       });
-      
+
       setCurrentResult(record); 
       setHistory(prev => [record, ...prev]);
-      if (audioRef.current) { audioRef.current.src = url; audioRef.current.play(); setIsPlaying(true); }
-    } catch (e) {
-      console.error("Generation Error:", e);
-      alert("حدث خطأ في توليد الصوت. تأكد من مفتاح الـ API.");
-    } finally { setIsGenerating(false); }
+    } catch (e) { 
+      console.error(e);
+      alert("فشل التوليد، يرجى المحاولة مرة أخرى."); 
+    }
+    finally { setIsGenerating(false); }
+  };
+
+  const handleAdminAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === '41414141') {
+      const gStats = await api.getGlobalStats();
+      const allRecords = await api.getAllRecords();
+      setStats(gStats);
+      setGlobalRecords(allRecords);
+      setIsAdminView(true);
+      setShowLogin(false);
+    } else alert("كلمة المرور خاطئة");
   };
 
   if (showIntro) return (
     <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
-      <div className="text-center animate-in fade-in zoom-in duration-1000">
+      <div className="text-center animate-pulse">
         <h1 className="tech-logo text-7xl md:text-9xl">Majd</h1>
-        <p className="text-white/20 text-xs tracking-[1.5em] uppercase font-bold animate-pulse mt-8">CLOUD SYNC ACTIVE</p>
+        <p className="text-white/20 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">NEXT GEN VOICE STUDIO</p>
+      </div>
+    </div>
+  );
+
+  if (isAdminView && stats) return (
+    <div className="min-h-screen bg-[#020617] text-white p-10 md:p-20 font-arabic">
+      <header className="flex justify-between items-center mb-16">
+        <div>
+          <h1 className="text-4xl font-black brand-text">لوحة التحكم السحابية</h1>
+          <p className="text-white/40 text-[10px] uppercase tracking-widest mt-2">MAJD ANALYTICS CORE</p>
+        </div>
+        <button onClick={() => setIsAdminView(false)} className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-xs font-bold">العودة للاستوديو</button>
+      </header>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
+        <StatCard label="التسجيلات" value={stats.total_records} icon="🎙️" />
+        <StatCard label="المتوسط" value={stats.avg_voices_per_user.toFixed(1)} icon="📊" />
+        <StatCard label="وقت الجلسة" value={`${stats.avg_session_duration.toFixed(1)}د`} icon="⏱️" />
+      </div>
+
+      <div className="admin-card p-10 rounded-[40px] space-y-8 overflow-hidden">
+        <h3 className="text-xl font-bold border-b border-white/5 pb-4">سجل الأصوات العالمي (Global Voice Log)</h3>
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-right min-w-[700px]">
+            <thead>
+              <tr className="text-white/40 text-[10px] uppercase tracking-wider border-b border-white/5">
+                <th className="pb-4 font-bold">التاريخ</th>
+                <th className="pb-4 font-bold">المستخدم</th>
+                <th className="pb-4 font-bold">اللهجة / النمط</th>
+                <th className="pb-4 font-bold">النص</th>
+                <th className="pb-4 font-bold">العمليات</th>
+              </tr>
+            </thead>
+            <tbody className="text-sm">
+              {globalRecords.map((rec) => (
+                <tr key={rec.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
+                  <td className="py-4 text-[10px] opacity-40">{new Date(rec.timestamp).toLocaleString('ar-EG')}</td>
+                  <td className="py-4 font-mono text-[10px] text-cyan-400">{rec.user_id}</td>
+                  <td className="py-4 text-xs">{rec.selection.dialect} - {rec.selection.type}</td>
+                  <td className="py-4 truncate max-w-[200px] opacity-60">"{rec.text}"</td>
+                  <td className="py-4">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className={`h-8 w-8 rounded-lg flex items-center justify-center transition-all ${playingId === rec.id ? 'bg-rose-500 text-white' : 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white'}`}>
+                        {playingId === rec.id ? (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        )}
+                      </button>
+                      <a href={rec.audio_data} download={`MAJD_GLOBAL_${rec.id}.wav`} className="h-8 w-8 rounded-lg bg-white/5 text-white/40 flex items-center justify-center hover:bg-white/10 hover:text-white transition-all">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {globalRecords.length === 0 && <div className="py-10 text-center opacity-20 text-xs italic font-bold">جاري تحميل السجلات السحابية...</div>}
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative overflow-x-hidden" dir="rtl">
-      {isVerifying && <PasswordModal onVerify={loadAdminData} onClose={() => setIsVerifying(false)} isLoading={isAdminLoading} />}
-      {showAdmin && <AdminDashboard stats={globalStats} records={allRecords} onRefresh={loadAdminData} onClose={() => setShowAdmin(false)} />}
-
+    <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
+      
       <div className="fixed top-8 left-8 z-50">
-        <button onClick={() => setIsVerifying(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs flex items-center gap-3">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          البوابة العالمية
-        </button>
+        <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-[10px] uppercase tracking-widest">Control Panel</button>
       </div>
 
-      <header className="mb-24 text-center z-10">
-        <h1 className="tech-logo text-6xl md:text-8xl mb-4">Majd</h1>
-        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Cloud Audio Studio</p>
+      {showLogin && (
+        <div className="fixed inset-0 z-[600] bg-black/95 backdrop-blur-2xl flex items-center justify-center p-6">
+          <form onSubmit={handleAdminAuth} className="glass-3d w-full max-w-md p-12 rounded-[50px] text-center space-y-8">
+            <h2 className="text-2xl font-black">الدخول للمدير</h2>
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl tracking-widest focus:outline-none focus:border-cyan-500/50" />
+            <button className="w-full brand-bg py-5 rounded-2xl font-bold">دخول آمن</button>
+            <button type="button" onClick={()=>setShowLogin(false)} className="text-white/20 text-xs hover:text-white/40 transition-all">إغلاق</button>
+          </form>
+        </div>
+      )}
+
+      <header className="mb-24 text-center">
+        <h1 className="tech-logo text-7xl md:text-9xl mb-4">Majd</h1>
+        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Professional Voice Studio</p>
       </header>
 
-      <main className="w-full max-w-5xl space-y-24 z-10">
-        <section className="glass-3d p-16 rounded-[50px]">
-          <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">١. اختيار الهوية اللغوية</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {DIALECTS.map(d => (
-              <button key={d.id} onClick={() => setSelectedDialectId(d.id)} className={`p-8 rounded-[35px] text-right border-2 transition-all ${selectedDialectId === d.id ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-white/5 bg-white/5'}`}>
-                <h4 className="text-xl font-bold mb-2">{d.title}</h4>
-                <p className="text-[10px] text-white/30">{d.description}</p>
-              </button>
-            ))}
+      <main className="w-full max-w-6xl space-y-16">
+        <section className="glass-3d p-12 rounded-[50px] space-y-12">
+          <SelectionBlock title="اللهجة العربية" options={DIALECTS.map(d=>d.title)} current={DIALECTS.find(d=>d.id===selectedDialectId)?.title || ''} set={(t) => setSelectedDialectId(DIALECTS.find(d=>d.title===t)?.id || DIALECTS[0].id)} />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-12">
+            <SelectionBlock title="الهوية العمرية" options={VOICE_TYPES} current={selectedAge} set={setSelectedAge} />
+            <SelectionBlock title="الجنس" options={['ذكر', 'أنثى']} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
           </div>
-        </section>
 
-        <section className="glass-3d p-16 rounded-[50px] space-y-16">
-           <SelectionBlock title="٢. الهوية العمرية" options={VOICE_TYPES} current={selectedType} set={setSelectedType} />
-           <div className="flex justify-center gap-6">
-              {['ذكر', 'أنثى'].map(g => (
-                <button key={g} onClick={() => setSelectedGender(g)} className={`px-12 py-4 rounded-full border-2 font-bold text-sm ${selectedGender === g ? 'border-indigo-500 bg-indigo-500/20 text-white' : 'border-white/5 bg-white/5 text-white/30'}`}>{g}</button>
-              ))}
-           </div>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {filteredProfiles.map(p => (
-                <button key={p.name} onClick={() => setSelectedVoiceName(p.name)} className={`p-6 rounded-[35px] border-2 transition-all text-center ${selectedVoiceName === p.name ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/5 bg-white/5'}`}>
-                  <p className="font-bold text-sm">{p.name}</p>
-                  <p className="text-[9px] text-white/20 uppercase tracking-widest">{p.category}</p>
+          <div className="space-y-6 pt-12 border-t border-white/5">
+            <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center">اختيار الصوت</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {availableProfiles.map(profile => (
+                <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-4 rounded-2xl border transition-all text-center space-y-2 group ${selectedProfile?.name === profile.name ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+                  <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-lg transition-transform group-hover:scale-110 ${selectedProfile?.name === profile.name ? 'bg-cyan-500 text-white' : 'bg-white/5 text-white/20'}`}>
+                    {profile.gender === 'male' ? '👨' : '👩'}
+                  </div>
+                  <div className="text-xs font-bold truncate">{profile.name}</div>
+                  <div className="text-[9px] opacity-30 truncate">{profile.category}</div>
                 </button>
               ))}
-           </div>
-        </section>
+            </div>
+          </div>
 
-        <section className="glass-3d p-16 rounded-[50px]">
-          <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">٣. غرفة المعالجة الهندسية</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12 border-t border-white/5">
             {Object.entries(STUDIO_CONTROLS).map(([k, c]) => (
-              <ControlGroup key={k} id={k} title={c.title} options={c.options} current={(voiceControls as any)[k]} onChange={v => setVoiceControls(prev => ({...prev, [k]: v}))} />
+              <ControlGroup key={k} title={c.title} options={c.options} current={(voiceControls as any)[k]} onChange={v => setVoiceControls(prev => ({...prev, [k]: v}))} />
             ))}
           </div>
         </section>
 
-        <section className="glass-3d p-16 rounded-[50px] space-y-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <textarea className="w-full h-64 bg-black/40 border border-white/5 rounded-[40px] p-8 text-xl text-white outline-none text-right" placeholder="اكتب النص الأساسي هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
-            <textarea className="w-full h-64 bg-indigo-500/5 border border-indigo-500/10 rounded-[40px] p-8 text-xl text-indigo-100 outline-none text-right" placeholder="المخطوطة النهائية المعدلة..." value={processedText} readOnly />
-          </div>
-          <button onClick={handlePreprocess} disabled={isPreprocessing || !inputText.trim()} className="w-full py-5 rounded-[25px] border border-cyan-500/20 bg-cyan-500/5 text-cyan-400 text-xs font-bold tracking-[0.4em] uppercase">
-            {isPreprocessing ? 'جاري التحسين...' : 'تحسين المخطوطة'}
-          </button>
-        </section>
+        {/* --- قسم المخطوطة الجديد --- */}
+        <section className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* المخطوطة الأصلية */}
+            <div className="relative glass-3d rounded-[40px] border-white/5 group transition-all">
+               <div className="absolute top-6 right-8 text-[10px] font-bold text-white/20 uppercase tracking-widest">المخطوطة الأصلية</div>
+               <textarea className="w-full h-80 bg-transparent p-12 pt-16 text-xl text-white/40 text-right outline-none resize-none placeholder:text-white/5 font-arabic" placeholder="اكتب نصك الخام هنا..." value={inputText} onChange={e => { setInputText(e.target.value); if(refinedText) setRefinedText(''); }} />
+               <button onClick={handleImproveText} disabled={isPreprocessing || !inputText.trim()} className={`absolute bottom-8 left-8 px-8 py-4 rounded-2xl border transition-all flex items-center gap-3 font-bold text-xs ${isPreprocessing ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 animate-pulse' : 'bg-white/5 border-white/10 text-white hover:bg-cyan-500 hover:border-cyan-500 shadow-xl'}`}>
+                {isPreprocessing ? 'جاري التحسين الذكي...' : 'تحسين المخطوطة ✨'}
+               </button>
+            </div>
 
-        <section className="flex justify-center pb-20">
-          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim()} className={`w-full max-w-2xl py-12 rounded-full font-bold text-2xl flex items-center justify-center gap-6 shadow-3xl ${isGenerating ? 'bg-white/5 text-white/20' : 'brand-bg text-white'}`}>
-            {isGenerating ? 'جاري التوليد السحابي...' : 'بدء توليد الأداء (Cloud Master)'}
+            {/* النص المطور */}
+            <div className={`relative glass-3d rounded-[40px] border-cyan-500/20 transition-all overflow-hidden ${refinedText ? 'opacity-100 translate-x-0' : 'opacity-30 pointer-events-none scale-95'}`}>
+               <div className="absolute top-6 right-8 text-[10px] font-bold text-cyan-400 uppercase tracking-widest">النص المطور (للتوليد)</div>
+               <textarea className="w-full h-80 bg-cyan-500/5 p-12 pt-16 text-xl text-white text-right outline-none resize-none font-arabic leading-relaxed" placeholder="سيظهر النص المحسن هنا..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
+               {refinedText && (
+                 <div className="absolute bottom-6 left-8 flex items-center gap-2">
+                   <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                   <span className="text-[10px] font-bold text-cyan-400/60 uppercase">جاهز للتسجيل</span>
+                 </div>
+               )}
+            </div>
+          </div>
+
+          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim() || !selectedProfile} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.01] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-4">
+            {isGenerating ? (
+              <>
+                <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>جاري استدعاء المحرك الصوتي...</span>
+              </>
+            ) : (
+              <span>توليد التعليق الصوتي</span>
+            )}
           </button>
         </section>
 
         {currentResult && (
-          <section className="glass-3d p-16 rounded-[60px] border-cyan-500/20 text-center space-y-12">
-             <h3 className="text-4xl font-bold brand-text">MASTER OUTPUT READY</h3>
-             <div className="w-full max-w-2xl p-12 rounded-[50px] bg-black/50 mx-auto space-y-10">
-                <button onClick={() => { if(isPlaying) audioRef.current?.pause(); else audioRef.current?.play(); setIsPlaying(!isPlaying); }} className="h-24 w-24 rounded-full brand-bg text-white flex items-center justify-center mx-auto">
-                   {isPlaying ? 'Pause' : 'Play'}
-                </button>
-             </div>
-          </section>
+          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-4 shadow-[0_0_80px_-15px_rgba(56,189,248,0.3)]">
+            <div className="flex items-center gap-6">
+              <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-20 w-20 rounded-full brand-bg flex items-center justify-center text-white shadow-xl hover:scale-110 transition-all ${playingId === currentResult.id ? 'bg-rose-600' : ''}`}>
+                {playingId === currentResult.id ? (
+                  <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                ) : (
+                  <svg className="w-10 h-10 ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                )}
+              </button>
+              <div className="text-right"><h4 className="text-xl font-black text-white">تم استوديو Majd بنجاح</h4><p className="text-white/40 text-sm font-bold">{currentResult.duration.toFixed(1)} ثانية | WAV High Quality</p></div>
+            </div>
+            <a href={currentResult.audio_data} download={`MAJD_VOICE_${Date.now()}.wav`} className="flex items-center gap-4 px-12 py-6 rounded-[28px] brand-bg text-white font-black uppercase tracking-widest hover:brightness-110 shadow-2xl transition-all group">
+              <span>تحميل المادة الصوتية</span>
+              <svg className="w-6 h-6 group-hover:translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            </a>
+          </div>
         )}
-      </main>
 
-      <audio ref={audioRef} onEnded={() => setIsPlaying(false)} className="hidden" />
+        <section className="glass-3d p-12 rounded-[50px] space-y-8">
+          <h3 className="text-xl font-bold flex justify-between items-center">
+            <span>السجل الشخصي</span>
+            <span className="text-[10px] opacity-20 uppercase tracking-widest">Recent Sessions</span>
+          </h3>
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
+            {history.map((rec) => (
+              <div key={rec.id} className="p-6 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-all group">
+                <div className="flex gap-3">
+                  <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className={`h-12 w-12 rounded-xl flex items-center justify-center transition-all ${playingId === rec.id ? 'bg-rose-500 text-white shadow-lg' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white'}`}>
+                    {playingId === rec.id ? (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    )}
+                  </button>
+                  <a href={rec.audio_data} download={`MAJD_HISTORY_${rec.id}.wav`} className="h-12 w-12 rounded-xl bg-white/5 text-white/40 flex items-center justify-center hover:bg-white/10 hover:text-white transition-all">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  </a>
+                </div>
+                <div className="text-right flex-1 truncate ml-4">
+                  <p className="text-sm font-arabic truncate max-w-md">"{rec.text}"</p>
+                  <span className="text-[10px] opacity-20">{rec.selection.dialect} | {rec.selection.field}</span>
+                </div>
+              </div>
+            ))}
+            {history.length === 0 && <div className="py-20 text-center text-white/5 text-sm italic">لا توجد سجلات في الذاكرة المحلية</div>}
+          </div>
+        </section>
+      </main>
+      <footer className="mt-40 text-center opacity-10 text-[10px] uppercase font-black tracking-[1em] pb-10">Majd STUDIO VO • ADVANCED IDENTITY SYSTEM</footer>
     </div>
   );
 };

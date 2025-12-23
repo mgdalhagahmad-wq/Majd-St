@@ -17,7 +17,9 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
+  // استخدام نسخة من الـ buffer لضمان عدم حدوث مشاكل في الذاكرة المشتركة
+  const bufferCopy = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  const dataInt16 = new Int16Array(bufferCopy);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
@@ -68,6 +70,14 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
   return new Blob([outBuffer], { type: "audio/wav" });
 }
 
+const blobToDataURL = (blob: Blob): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(blob);
+  });
+};
+
 export class MajdStudioService {
   private ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
@@ -79,14 +89,14 @@ export class MajdStudioService {
 أخرج النص المعالج فقط بالعربية.
 النص: "${text}"
     `;
-    const result = await this.ai.models.generateContent({
+    const response = await this.ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [{ parts: [{ text: prompt }] }],
     });
-    return result.text || text;
+    return response.text || text;
   }
 
-  async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ url: string, duration: number }> {
+  async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     const directive = `توجيه Majd STUDIO VO الاحترافي: ${performanceNote}\nالنص: "${text}"`;
 
     const response = await this.ai.models.generateContent({
@@ -106,8 +116,10 @@ export class MajdStudioService {
     const audioBuffer = await decodeAudioData(decodedBytes, audioContext, 24000, 1);
     
     const wavBlob = audioBufferToWav(audioBuffer);
+    const dataUrl = await blobToDataURL(wavBlob);
+    
     return {
-      url: URL.createObjectURL(wavBlob),
+      dataUrl,
       duration: audioBuffer.duration
     };
   }
