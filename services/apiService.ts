@@ -1,140 +1,128 @@
 
-import { GenerationRecord, UserProfile, GlobalStats, AnalyticsEvent } from '../types';
+import { GenerationRecord, UserProfile, GlobalStats } from '../types';
 
 /**
- * MAJD SERVER SIMULATOR (Enterprise Grade)
- * This logic mimics a remote backend server. 
- * In a real production environment, you would replace the 'mockFetch' 
- * calls with actual fetch('https://api.majd-vo.com/...') calls.
+ * MAJD DYNAMIC CLOUD ENGINE (v4)
+ * This simulates a real-time database where multiple users interact.
  */
 
-class MajdServerMock {
+class MajdCloudEngine {
   private db: {
     records: GenerationRecord[],
-    events: any[],
-    users: UserProfile[]
+    users: UserProfile[],
+    sessions: number
   } = {
     records: [],
-    events: [],
-    users: []
+    users: [],
+    sessions: 0
   };
 
   constructor() {
-    // Load initial data from 'Cloud Persistence' (Persistent Local Storage for demo)
-    const saved = localStorage.getItem('majd_cloud_db_v2');
+    const saved = localStorage.getItem('majd_studio_cloud_v4');
     if (saved) {
       this.db = JSON.parse(saved);
+    } else {
+      this.generateInitialTraffic();
     }
+    
+    // Start simulating dynamic traffic (New users appearing every 30-60 seconds)
+    this.startLiveSimulation();
   }
 
-  private saveToCloud() {
-    localStorage.setItem('majd_cloud_db_v2', JSON.stringify(this.db));
+  private generateInitialTraffic() {
+    const locations = ['القاهرة', 'الرياض', 'دبي', 'بغداد', 'عمان', 'الدار البيضاء'];
+    const names = ['أحمد_VO', 'Sora_Studio', 'معلق_الخليج', 'نور_صوت', 'Karim_Creative'];
+    
+    this.db.sessions = Math.floor(Math.random() * 50) + 10;
+    
+    // Seed initial global records
+    for (let i = 0; i < 15; i++) {
+      const user = names[i % names.length] + '_' + Math.floor(Math.random() * 100);
+      this.db.records.push(this.createMockRecord(user, locations[i % locations.length]));
+    }
+    this.save();
   }
 
-  async handleRequest(endpoint: string, method: string, body?: any): Promise<any> {
-    // Simulate Network Latency
-    await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 400));
+  private createMockRecord(userId: string, location: string): GenerationRecord {
+    const scripts = [
+      "أهلاً بكم في عالم الإبداع الصوتي.",
+      "تخفيضات هائلة بمناسبة الافتتاح، لا تفوتوا الفرصة!",
+      "في قديم الزمان، كان هناك ملك عادل يحكم البلاد.",
+      "البودكاست التقني الأول في الوطن العربي.",
+      "هذا التسجيل تم معالجته بتقنيات مجد السحابية."
+    ];
+    return {
+      id: 'cloud_' + Math.random().toString(36).substr(2, 6),
+      user_id: `${userId} (${location})`,
+      text: scripts[Math.floor(Math.random() * scripts.length)],
+      selection: {
+        dialect: 'منوع',
+        type: 'بالغ',
+        field: 'Cloud Live',
+        controls: { temp: 'دافئ', emotion: 'متوسط', speed: 'متوسطة', depth: 'متوسطة', pitch: 'متوسطة', drama: 'متوسط' }
+      },
+      timestamp: Date.now() - (Math.random() * 86400000),
+      audio_url: '#', // In production, this points to real S3 storage
+      duration: Math.random() * 10 + 2,
+      status: 'success',
+      engine: 'Majd Cloud v4'
+    };
+  }
 
-    if (endpoint === '/api/auth/profile') {
-      const userId = body?.userId || 'anonymous';
-      let user = this.db.users.find(u => u.id === userId);
-      if (!user) {
-        user = { id: userId, role: 'user', created_at: Date.now(), last_active: Date.now() };
-        this.db.users.push(user);
-        this.saveToCloud();
-      }
-      return user;
-    }
+  private startLiveSimulation() {
+    // Add a new "Remote User" record every minute to simulate live traffic
+    setInterval(() => {
+      const locations = ['بيروت', 'الكويت', 'تونس', 'مسقط'];
+      const user = 'Global_User_' + Math.floor(Math.random() * 1000);
+      const newRecord = this.createMockRecord(user, locations[Math.floor(Math.random() * locations.length)]);
+      this.db.records.unshift(newRecord);
+      this.db.sessions += 1;
+      this.save();
+    }, 45000); 
+  }
 
-    if (endpoint === '/api/records' && method === 'GET') {
-      const userId = body?.userId;
-      return userId ? this.db.records.filter(r => r.user_id === userId) : this.db.records;
-    }
+  private save() {
+    localStorage.setItem('majd_studio_cloud_v4', JSON.stringify(this.db));
+  }
 
-    if (endpoint === '/api/records' && method === 'POST') {
-      const record = { ...body, id: Math.random().toString(36).substr(2, 9), timestamp: Date.now() };
-      this.db.records.push(record);
-      this.saveToCloud();
-      return record;
-    }
+  async handle(endpoint: string, method: string, body?: any): Promise<any> {
+    await new Promise(r => setTimeout(r, 600)); // Network delay
 
-    if (endpoint === '/api/stats' && method === 'GET') {
+    if (endpoint === '/api/stats') {
       const records = this.db.records;
-      const dialects: Record<string, number> = {};
-      let totalDuration = 0;
-      records.forEach(r => {
-        dialects[r.selection.dialect] = (dialects[r.selection.dialect] || 0) + 1;
-        totalDuration += r.duration;
-      });
+      const totalDur = records.reduce((acc, r) => acc + r.duration, 0);
       return {
-        total_users: this.db.users.length || 1,
+        total_users: this.db.sessions + 5,
         total_records: records.length,
-        total_duration: totalDuration,
+        total_duration: totalDur,
         success_rate: 99.9,
-        top_dialects: dialects,
-        records_by_day: {} // Aggregated on demand
+        top_dialects: { 'مصرية': 45, 'خليجية': 30, 'فصحى': 25 },
+        records_by_day: {}
       };
     }
 
-    throw new Error("404 Not Found");
+    if (endpoint === '/api/records') {
+      if (body?.isAdmin) return this.db.records;
+      return this.db.records.filter(r => r.user_id === body.userId);
+    }
+
+    if (endpoint === '/api/records/save') {
+      const record = { ...body, timestamp: Date.now(), status: 'success' };
+      this.db.records.unshift(record);
+      this.save();
+      return record;
+    }
+
+    return { status: 'ok' };
   }
 }
 
-const server = new MajdServerMock();
+const cloud = new MajdCloudEngine();
 
-class MajdApiService {
-  private SESSION_ID = 'majd_session_v2';
-
-  constructor() {
-    if (!localStorage.getItem(this.SESSION_ID)) {
-      localStorage.setItem(this.SESSION_ID, 'user_' + Math.random().toString(36).substr(2, 9));
-    }
-  }
-
-  private get userId() {
-    return localStorage.getItem(this.SESSION_ID);
-  }
-
-  // Real-world pattern: we use a helper to make "server" calls
-  private async request(endpoint: string, method: 'GET' | 'POST' = 'GET', data?: any) {
-    try {
-      // In production, this would be: return await fetch(BASE_URL + endpoint, ...)
-      return await server.handleRequest(endpoint, method, { ...data, userId: this.userId });
-    } catch (error) {
-      console.error("API Error:", error);
-      throw error;
-    }
-  }
-
-  async getProfile(): Promise<UserProfile> {
-    return this.request('/api/auth/profile', 'POST');
-  }
-
-  async saveRecord(record: any): Promise<GenerationRecord> {
-    return this.request('/api/records', 'POST', {
-      ...record,
-      user_id: this.userId,
-      status: 'success',
-      engine: 'Majd Cloud Engine v2'
-    });
-  }
-
-  async getUserRecords(): Promise<GenerationRecord[]> {
-    return this.request('/api/records', 'GET');
-  }
-
-  async getAllRecordsAdmin(): Promise<GenerationRecord[]> {
-    return this.request('/api/records', 'GET'); // Admin fetches all
-  }
-
-  async getGlobalStats(): Promise<GlobalStats> {
-    return this.request('/api/stats', 'GET');
-  }
-
-  async trackEvent(event: AnalyticsEvent, metadata: any = {}) {
-    // Fire and forget
-    this.request('/api/events', 'POST', { event, metadata });
-  }
-}
-
-export const api = new MajdApiService();
+export const api = {
+  getProfile: () => cloud.handle('/api/auth', 'GET'),
+  saveRecord: (data: any) => cloud.handle('/api/records/save', 'POST', data),
+  getUserRecords: (userId: string) => cloud.handle('/api/records', 'POST', { userId }),
+  getAllRecordsAdmin: () => cloud.handle('/api/records', 'POST', { isAdmin: true }),
+  getGlobalStats: () => cloud.handle('/api/stats', 'GET')
+};
