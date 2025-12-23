@@ -12,7 +12,7 @@ class MajdCloudEngine {
 
   constructor() {
     this.loadFromLocal();
-    this.initialCloudSync();
+    this.syncWithCloud();
   }
 
   private loadFromLocal() {
@@ -29,11 +29,17 @@ class MajdCloudEngine {
       localStorage.setItem('majd_records', JSON.stringify(this.recordsCache));
       localStorage.setItem('majd_sessions', JSON.stringify(this.sessionsCache));
     } catch (e) {
-      console.warn("Local storage full, possibly due to large audio files.");
+      // إذا امتلأت الذاكرة المحلية بسبب حجم ملفات الصوت، سنحتفظ بها في الذاكرة الحية (RAM) فقط
+      console.warn("Local storage full, keeping data in memory only.");
     }
   }
 
-  private async initialCloudSync() {
+  /**
+   * جلب أحدث البيانات من السحاب ودمجها مع المحلية
+   */
+  async syncWithCloud() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
     try {
       const res = await fetch(`${CLOUD_API_URL}/latest`, {
         headers: { "X-Master-Key": MASTER_KEY, "X-Bin-Meta": "false" }
@@ -41,31 +47,38 @@ class MajdCloudEngine {
       if (!res.ok) throw new Error("Cloud fetch failed");
       const data = await res.json();
       
-      // دمج البيانات السحابية مع المحلية (تجنب التكرار)
       const cloudRecords = Array.isArray(data.records) ? data.records : [];
       const cloudSessions = Array.isArray(data.sessions) ? data.sessions : [];
       
-      const localIds = new Set(this.recordsCache.map(r => r.id));
-      const missingFromLocal = cloudRecords.filter((r: any) => !localIds.has(r.id));
-      
-      this.recordsCache = [...this.recordsCache, ...missingFromLocal].sort((a, b) => b.timestamp - a.timestamp);
-      this.sessionsCache = [...this.sessionsCache, ...cloudSessions];
+      // دمج السجلات مع الحفاظ على الفرادة عبر الـ ID
+      const mergedRecords = [...this.recordsCache];
+      cloudRecords.forEach((cr: GenerationRecord) => {
+        if (!mergedRecords.find(lr => lr.id === cr.id)) {
+          mergedRecords.push(cr);
+        }
+      });
+
+      this.recordsCache = mergedRecords.sort((a, b) => b.timestamp - a.timestamp);
+      this.sessionsCache = [...cloudSessions, ...this.sessionsCache].slice(-200); // حفظ آخر 200 جلسة فقط
       
       this.saveToLocal();
+      console.log("Cloud sync successful");
     } catch (e) {
-      console.log("Working in offline mode (Local-only)");
+      console.error("Cloud sync failed, working in local mode", e);
+    } finally {
+      this.isSyncing = false;
     }
   }
 
-  private async commitToCloud() {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
-    
+  /**
+   * رفع البيانات للسحاب بعد الدمج
+   */
+  private async pushToCloud() {
     try {
-      // JSONBin قد يرفض الطلبات الضخمة جداً، لذا نقوم بتنظيف السجلات القديمة إذا لزم الأمر في السحاب فقط
+      // دمج أخير قبل الرفع لضمان عدم مسح بيانات الآخرين
       const dataToSync = {
-        records: this.recordsCache.slice(0, 50), // مزامنة آخر 50 سجل فقط للسحاب للحفاظ على الأداء
-        sessions: this.sessionsCache.slice(-100)
+        records: this.recordsCache.slice(0, 40), // نكتفي بآخر 40 سجل عالمي لتجنب تجاوز حجم الملف (10MB)
+        sessions: this.sessionsCache.slice(-50)
       };
 
       await fetch(CLOUD_API_URL, {
@@ -78,9 +91,7 @@ class MajdCloudEngine {
         body: JSON.stringify(dataToSync)
       });
     } catch (e) {
-      console.warn("Cloud sync deferred: Network issues or payload size limit.");
-    } finally {
-      this.isSyncing = false;
+      console.warn("Push to cloud failed", e);
     }
   }
 
@@ -94,7 +105,7 @@ class MajdCloudEngine {
 
     const userAgent = navigator.userAgent;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
-    const browser = userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Other";
+    const browser = userAgent.includes("Chrome") ? "Chrome" : "Safari";
 
     const newSession: SessionLog = {
       id: 'sess_' + Date.now(),
@@ -110,19 +121,11 @@ class MajdCloudEngine {
 
     this.sessionsCache.push(newSession);
     this.saveToLocal();
-    this.commitToCloud();
     return newSession;
   }
 
-  async updateActivity(sessionId: string) {
-    const sess = this.sessionsCache.find(s => s.id === sessionId);
-    if (sess) {
-      sess.last_active = Date.now();
-      this.saveToLocal();
-    }
-  }
-
   async getGlobalStats(): Promise<GlobalStats> {
+    await this.syncWithCloud(); // تحديث البيانات قبل عرض الإحصائيات
     const records = this.recordsCache;
     const sessions = this.sessionsCache;
     const uniqueUsers = new Set(sessions.map(s => s.user_id)).size || 1;
@@ -131,15 +134,8 @@ class MajdCloudEngine {
     sessions.forEach(s => countryMap[s.country] = (countryMap[s.country] || 0) + 1);
     const top_countries = Object.entries(countryMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5);
 
-    const sourceMap: Record<string, number> = {};
-    sessions.forEach(s => sourceMap[s.referrer] = (sourceMap[s.referrer] || 0) + 1);
-    const top_sources = Object.entries(sourceMap).map(([url, count]) => ({ url, count })).sort((a, b) => b.count - a.count).slice(0, 5);
-
     const durations = sessions.map(s => (s.last_active - s.start_time) / 60000);
     const avg_session_duration = durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
-
-    const device_stats: Record<string, number> = { Mobile: 0, Desktop: 0 };
-    sessions.forEach(s => device_stats[s.device] = (device_stats[s.device] || 0) + 1);
 
     return {
       total_users: uniqueUsers,
@@ -149,12 +145,13 @@ class MajdCloudEngine {
       avg_voices_per_user: records.length / uniqueUsers,
       avg_session_duration,
       top_countries,
-      top_sources,
-      device_stats
+      top_sources: [],
+      device_stats: {}
     };
   }
 
   async getAllRecords() {
+    await this.syncWithCloud(); // جلب أي أصوات جديدة من مستخدمين آخرين
     return this.recordsCache;
   }
 
@@ -163,16 +160,22 @@ class MajdCloudEngine {
   }
 
   async saveRecord(record: any) {
+    // 1. جلب البيانات من السحاب أولاً لدمج السجل الجديد مع سجلات الآخرين
+    await this.syncWithCloud();
+
     const newRecord: GenerationRecord = {
       ...record,
-      id: 'rec_' + Date.now(),
+      id: 'rec_' + Date.now() + Math.random().toString(36).substr(2, 5),
       timestamp: Date.now(),
       status: 'success',
-      engine: 'Majd Engine v6.1'
+      engine: 'Majd Global v7.0'
     };
+
     this.recordsCache = [newRecord, ...this.recordsCache];
     this.saveToLocal();
-    this.commitToCloud(); // محاولة مزامنة السجل الجديد
+    
+    // 2. دفع القائمة المدمجة للسحاب
+    await this.pushToCloud();
     return newRecord;
   }
 }
@@ -180,9 +183,9 @@ class MajdCloudEngine {
 const engine = new MajdCloudEngine();
 export const api = {
   logSession: (uid: string) => engine.logSession(uid),
-  updateActivity: (sid: string) => engine.updateActivity(sid),
   saveRecord: (data: any) => engine.saveRecord(data),
   getUserRecords: (uid: string) => engine.getUserRecords(uid),
   getAllRecords: () => engine.getAllRecords(),
-  getGlobalStats: () => engine.getGlobalStats()
+  getGlobalStats: () => engine.getGlobalStats(),
+  forceSync: () => engine.syncWithCloud()
 };

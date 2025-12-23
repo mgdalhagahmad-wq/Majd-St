@@ -69,6 +69,7 @@ const ControlGroup: React.FC<{ title: string; options: { label: string; desc: st
 const App: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro') !== 'true');
   const [isAdminView, setIsAdminView] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [password, setPassword] = useState('');
   const [stats, setStats] = useState<GlobalStats | null>(null);
@@ -213,16 +214,25 @@ const App: React.FC = () => {
     finally { setIsGenerating(false); }
   };
 
-  const handleAdminAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === '41414141') {
+  const handleAdminAuth = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (password === '41414141' || isAdminView) {
+      setIsRefreshing(true);
       const gStats = await api.getGlobalStats();
       const allRecords = await api.getAllRecords();
       setStats(gStats);
       setGlobalRecords(allRecords);
       setIsAdminView(true);
       setShowLogin(false);
+      setIsRefreshing(false);
     } else alert("كلمة المرور خاطئة");
+  };
+
+  const handleSyncData = async () => {
+    setIsRefreshing(true);
+    await api.forceSync();
+    await handleAdminAuth();
+    setIsRefreshing(false);
   };
 
   if (showIntro) return (
@@ -241,7 +251,12 @@ const App: React.FC = () => {
           <h1 className="text-4xl font-black brand-text">لوحة التحكم السحابية</h1>
           <p className="text-white/40 text-[10px] uppercase tracking-widest mt-2">MAJD ANALYTICS CORE</p>
         </div>
-        <button onClick={() => setIsAdminView(false)} className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-xs font-bold">العودة للاستوديو</button>
+        <div className="flex gap-4">
+          <button onClick={handleSyncData} disabled={isRefreshing} className={`px-8 py-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-bold transition-all ${isRefreshing ? 'animate-pulse opacity-50' : 'hover:bg-cyan-500 hover:text-white'}`}>
+            {isRefreshing ? 'جاري التحديث...' : 'تحديث البيانات السحابية 🔄'}
+          </button>
+          <button onClick={() => setIsAdminView(false)} className="px-8 py-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-xs font-bold">العودة للاستوديو</button>
+        </div>
       </header>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
@@ -252,7 +267,10 @@ const App: React.FC = () => {
       </div>
 
       <div className="admin-card p-10 rounded-[40px] space-y-8 overflow-hidden">
-        <h3 className="text-xl font-bold border-b border-white/5 pb-4">سجل الأصوات العالمي (Global Voice Log)</h3>
+        <h3 className="text-xl font-bold border-b border-white/5 pb-4 flex justify-between">
+          <span>سجل الأصوات العالمي (Cloud Voice Log)</span>
+          <span className="text-xs text-cyan-400 font-normal">عرض آخر 40 سجلاً مشتركاً</span>
+        </h3>
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-right min-w-[700px]">
             <thead>
@@ -343,7 +361,6 @@ const App: React.FC = () => {
 
       <main className="w-full max-w-6xl space-y-16">
         <section className="glass-3d p-12 rounded-[50px] space-y-12">
-          {/* اختيار اللهجة مع الأعلام */}
           <SelectionBlock 
             title="اللهجة العربية" 
             options={DIALECTS.map(d => ({ label: d.title, icon: d.flag }))} 
