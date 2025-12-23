@@ -101,15 +101,22 @@ const App: React.FC = () => {
   const availableProfiles = useMemo(() => {
     const dialect = DIALECTS.find(d => d.id === selectedDialectId);
     if (!dialect) return [];
-    return dialect.profiles.filter(p => 
-      p.voiceType === selectedAge && 
-      (p.gender === selectedGender || (selectedGender === 'male' ? p.gender === 'male' : p.gender === 'female'))
+    
+    // فلترة أولية بناءً على السن والجنس
+    const filtered = dialect.profiles.filter(p => 
+      p.voiceType === selectedAge && p.gender === selectedGender
     );
+
+    // إذا لم يوجد مطابق، ارجع بكل الأصوات المتاحة للهجة لضمان عدم التعطيل
+    return filtered.length > 0 ? filtered : dialect.profiles;
   }, [selectedDialectId, selectedAge, selectedGender]);
 
   useEffect(() => {
     if (availableProfiles.length > 0) {
-      setSelectedProfile(availableProfiles[0]);
+      // إذا كان البروفايل الحالي غير موجود في القائمة الجديدة، اختر الأول
+      if (!selectedProfile || !availableProfiles.find(p => p.name === selectedProfile.name)) {
+        setSelectedProfile(availableProfiles[0]);
+      }
     } else {
       setSelectedProfile(null);
     }
@@ -163,7 +170,10 @@ const App: React.FC = () => {
   };
 
   const handleImproveText = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim()) {
+      alert("يرجى كتابة نص أولاً لتحسينه.");
+      return;
+    }
     setIsPreprocessing(true);
     try {
       const refined = await majdService.preprocessText(inputText, { 
@@ -181,11 +191,21 @@ const App: React.FC = () => {
 
   const handleGenerate = async () => {
     const textToUse = refinedText || inputText;
-    if (!textToUse.trim() || !selectedProfile) return;
+    
+    if (!textToUse.trim()) {
+      alert("يرجى كتابة النص المراد تسجيله.");
+      return;
+    }
+
+    if (!selectedProfile) {
+      alert("يرجى اختيار معلق صوتي من القائمة أولاً.");
+      return;
+    }
+
     setIsGenerating(true);
     setLoadingMessage(WAITING_MESSAGES[0]);
     try {
-      const baseVoice = getBaseVoiceForType(selectedAge, selectedGender);
+      const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
       const { dataUrl, duration } = await majdService.generateVoiceOver(
         textToUse, 
         baseVoice, 
@@ -209,7 +229,7 @@ const App: React.FC = () => {
       setHistory(prev => [record, ...prev]);
     } catch (e) { 
       console.error(e);
-      alert("فشل التوليد، يرجى المحاولة مرة أخرى."); 
+      alert("فشل التوليد، تأكد من اتصال الإنترنت أو صلاحية المفتاح البرمجي."); 
     }
     finally { setIsGenerating(false); }
   };
@@ -384,7 +404,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="space-y-6 pt-12 border-t border-white/5">
-            <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center">اختيار الصوت</h3>
+            <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center">اختيار الصوت المتاح لهذه اللهجة</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {availableProfiles.map(profile => (
                 <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-4 rounded-2xl border transition-all text-center space-y-2 group ${selectedProfile?.name === profile.name ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
@@ -395,6 +415,9 @@ const App: React.FC = () => {
                   <div className="text-[9px] opacity-30 truncate">{profile.category}</div>
                 </button>
               ))}
+              {availableProfiles.length === 0 && (
+                <div className="col-span-full py-4 text-center text-white/20 text-xs font-bold">لا توجد أصوات مطابقة للفئات المختارة حالياً</div>
+              )}
             </div>
           </div>
 
@@ -410,7 +433,7 @@ const App: React.FC = () => {
             <div className="relative glass-3d rounded-[40px] border-white/5 group transition-all">
                <div className="absolute top-6 right-8 text-[10px] font-bold text-white/20 uppercase tracking-widest">المخطوطة الأصلية</div>
                <textarea className="w-full h-80 bg-transparent p-12 pt-16 text-xl text-white/40 text-right outline-none resize-none placeholder:text-white/5 font-arabic" placeholder="اكتب نصك الخام هنا..." value={inputText} onChange={e => { setInputText(e.target.value); if(refinedText) setRefinedText(''); }} />
-               <button onClick={handleImproveText} disabled={isPreprocessing || !inputText.trim()} className={`absolute bottom-8 left-8 px-8 py-4 rounded-2xl border transition-all flex items-center gap-3 font-bold text-xs ${isPreprocessing ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 animate-pulse' : 'bg-white/5 border-white/10 text-white hover:bg-cyan-500 hover:border-cyan-500 shadow-xl'}`}>
+               <button onClick={handleImproveText} disabled={isPreprocessing} className={`absolute bottom-8 left-8 px-8 py-4 rounded-2xl border transition-all flex items-center gap-3 font-bold text-xs ${isPreprocessing ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 animate-pulse' : 'bg-white/5 border-white/10 text-white hover:bg-cyan-500 hover:border-cyan-500 shadow-xl'}`}>
                 {isPreprocessing ? 'جاري التحسين الذكي...' : 'تحسين المخطوطة ✨'}
                </button>
             </div>
@@ -427,8 +450,8 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim() || !selectedProfile} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.01] transition-all disabled:opacity-50 flex items-center justify-center gap-4">
-            <span>توليد التعليق الصوتي</span>
+          <button onClick={handleGenerate} disabled={isGenerating} className={`w-full py-8 rounded-[35px] text-white text-xl font-black uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.01] transition-all flex items-center justify-center gap-4 ${isGenerating ? 'opacity-50 cursor-wait bg-slate-800' : 'brand-bg'}`}>
+            <span>{isGenerating ? 'جاري المعالجة...' : 'توليد التعليق الصوتي'}</span>
           </button>
         </section>
 

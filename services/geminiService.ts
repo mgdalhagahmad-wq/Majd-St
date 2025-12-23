@@ -1,7 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// وظيفة لفك تشفير Base64 إلى Uint8Array يدوياً كما تشترط الإرشادات
+// وظيفة لفك تشفير Base64 إلى Uint8Array
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -12,14 +12,14 @@ function decode(base64: string) {
   return bytes;
 }
 
-// وظيفة معالجة بيانات PCM الخام القادمة من Gemini
+// معالجة بيانات PCM الخام
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  // التأكد من محاذاة البيانات (Alignment) لتحويلها إلى Int16
+  // فك التشفير من PCM 16-bit
   const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2);
   const frameCount = dataInt16.length / numChannels;
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
@@ -33,44 +33,43 @@ async function decodeAudioData(
   return buffer;
 }
 
-// تحويل AudioBuffer إلى ملف WAV جاهز للتحميل أو التشغيل
+// تحويل AudioBuffer إلى WAV (إصدار محسّن ومستقر)
 function audioBufferToWav(buffer: AudioBuffer): Blob {
   const numOfChan = buffer.numberOfChannels;
   const length = buffer.length * numOfChan * 2 + 44;
   const outBuffer = new ArrayBuffer(length);
   const view = new DataView(outBuffer);
-  const channels = [];
-  let i, sample, offset = 0, pos = 0;
+  let pos = 0;
 
   const setUint16 = (data: number) => { view.setUint16(pos, data, true); pos += 2; };
   const setUint32 = (data: number) => { view.setUint32(pos, data, true); pos += 4; };
 
+  // RIFF Header
   setUint32(0x46464952); // "RIFF"
   setUint32(length - 8);
   setUint32(0x45564157); // "WAVE"
   setUint32(0x20746d66); // "fmt "
   setUint32(16);
-  setUint16(1); // PCM
+  setUint16(1); // PCM Format
   setUint16(numOfChan);
   setUint32(buffer.sampleRate);
   setUint32(buffer.sampleRate * 2 * numOfChan);
   setUint16(numOfChan * 2);
-  setUint16(16);
+  setUint16(16); // 16-bit
   setUint32(0x61746164); // "data"
   setUint32(length - pos - 4);
 
-  for (i = 0; i < buffer.numberOfChannels; i++) channels.push(buffer.getChannelData(i));
-  while (pos < length) {
-    for (i = 0; i < numOfChan; i++) {
-      for (let ch = 0; ch < numOfChan; ch++) {
-        sample = Math.max(-1, Math.min(1, channels[ch][offset]));
-        sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
-        view.setInt16(pos, sample, true);
-        pos += 2;
-      }
-      offset++;
+  // Write samples
+  for (let i = 0; i < buffer.length; i++) {
+    for (let channel = 0; channel < numOfChan; channel++) {
+      let sample = buffer.getChannelData(channel)[i];
+      sample = Math.max(-1, Math.min(1, sample)); // Clamp
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      view.setInt16(pos, sample, true);
+      pos += 2;
     }
   }
+
   return new Blob([outBuffer], { type: "audio/wav" });
 }
 
@@ -83,13 +82,12 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 };
 
 export class MajdStudioService {
-  /**
-   * تحسين النص باستخدام Gemini 3 Flash
-   */
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-      const prompt = `أعد صياغة النص التالي بلهجة ${options.dialect} لمجال ${options.field}. أضف علامات ترقيم لضبط النفس والوقفات. أخرج النص الجديد فقط: "${text}"`;
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API Key is missing");
+      const ai = new GoogleGenAI({ apiKey });
+      const prompt = `أعد صياغة النص التالي بلهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون حشو: "${text}"`;
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -98,18 +96,18 @@ export class MajdStudioService {
       
       return response.text || text;
     } catch (error) {
-      console.error("Text Preprocess Error:", error);
-      return text; // العودة للنص الأصلي في حال الفشل
+      console.warn("Text Preprocess Error:", error);
+      return text;
     }
   }
 
-  /**
-   * توليد الصوت باستخدام Gemini 2.5 Flash Native Audio (TTS)
-   */
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-      const directive = `الأداء المطلوب: ${performanceNote}. النص المراد تسجيله: "${text}"`;
+      const apiKey = process.env.API_KEY;
+      if (!apiKey) throw new Error("API Key is missing in environment");
+
+      const ai = new GoogleGenAI({ apiKey });
+      const directive = `أداء صوتي احترافي: ${performanceNote}. النص: "${text}"`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -124,13 +122,13 @@ export class MajdStudioService {
         },
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const base64Audio = audioPart?.inlineData?.data;
       
       if (!base64Audio) {
-        throw new Error("لم يتم استلام بيانات صوتية من الخادم (No Audio Data)");
+        throw new Error("Invalid API response: Audio data not found");
       }
 
-      // إعداد سياق الصوت للتحويل
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedBytes = decode(base64Audio);
       const audioBuffer = await decodeAudioData(decodedBytes, audioContext, 24000, 1);
@@ -138,13 +136,10 @@ export class MajdStudioService {
       const wavBlob = audioBufferToWav(audioBuffer);
       const dataUrl = await blobToDataURL(wavBlob);
       
-      return {
-        dataUrl,
-        duration: audioBuffer.duration
-      };
+      return { dataUrl, duration: audioBuffer.duration };
     } catch (error: any) {
-      console.error("Voice Generation Error Details:", error);
-      throw error; // سيتم التقاطه في App.tsx وإظهار التنبيه للمستخدم
+      console.error("CRITICAL GENERATION ERROR:", error.message || error);
+      throw error;
     }
   }
 }
