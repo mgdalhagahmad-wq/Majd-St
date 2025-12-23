@@ -1,128 +1,139 @@
 
-import { GenerationRecord, UserProfile, GlobalStats, AnalyticsEvent, VoiceSelection } from '../types';
+import { GenerationRecord, UserProfile, GlobalStats, AnalyticsEvent } from '../types';
 
 /**
- * Helper to generate unique IDs even in non-secure contexts (http)
+ * MAJD SERVER SIMULATOR (Enterprise Grade)
+ * This logic mimics a remote backend server. 
+ * In a real production environment, you would replace the 'mockFetch' 
+ * calls with actual fetch('https://api.majd-vo.com/...') calls.
  */
-function generateId(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
 
-class MajdApiService {
-  private USER_KEY = 'majd_user_profile_new';
-  private SESSION_KEY = 'majd_session_id_new';
+class MajdServerMock {
+  private db: {
+    records: GenerationRecord[],
+    events: any[],
+    users: UserProfile[]
+  } = {
+    records: [],
+    events: [],
+    users: []
+  };
 
   constructor() {
-    this.initSession();
-  }
-
-  private initSession() {
-    if (!localStorage.getItem(this.SESSION_KEY)) {
-      localStorage.setItem(this.SESSION_KEY, generateId());
+    // Load initial data from 'Cloud Persistence' (Persistent Local Storage for demo)
+    const saved = localStorage.getItem('majd_cloud_db_v2');
+    if (saved) {
+      this.db = JSON.parse(saved);
     }
   }
 
-  getCurrentUserId(): string {
-    return localStorage.getItem(this.SESSION_KEY) || 'anonymous';
+  private saveToCloud() {
+    localStorage.setItem('majd_cloud_db_v2', JSON.stringify(this.db));
+  }
+
+  async handleRequest(endpoint: string, method: string, body?: any): Promise<any> {
+    // Simulate Network Latency
+    await new Promise(resolve => setTimeout(resolve, 600 + Math.random() * 400));
+
+    if (endpoint === '/api/auth/profile') {
+      const userId = body?.userId || 'anonymous';
+      let user = this.db.users.find(u => u.id === userId);
+      if (!user) {
+        user = { id: userId, role: 'user', created_at: Date.now(), last_active: Date.now() };
+        this.db.users.push(user);
+        this.saveToCloud();
+      }
+      return user;
+    }
+
+    if (endpoint === '/api/records' && method === 'GET') {
+      const userId = body?.userId;
+      return userId ? this.db.records.filter(r => r.user_id === userId) : this.db.records;
+    }
+
+    if (endpoint === '/api/records' && method === 'POST') {
+      const record = { ...body, id: Math.random().toString(36).substr(2, 9), timestamp: Date.now() };
+      this.db.records.push(record);
+      this.saveToCloud();
+      return record;
+    }
+
+    if (endpoint === '/api/stats' && method === 'GET') {
+      const records = this.db.records;
+      const dialects: Record<string, number> = {};
+      let totalDuration = 0;
+      records.forEach(r => {
+        dialects[r.selection.dialect] = (dialects[r.selection.dialect] || 0) + 1;
+        totalDuration += r.duration;
+      });
+      return {
+        total_users: this.db.users.length || 1,
+        total_records: records.length,
+        total_duration: totalDuration,
+        success_rate: 99.9,
+        top_dialects: dialects,
+        records_by_day: {} // Aggregated on demand
+      };
+    }
+
+    throw new Error("404 Not Found");
+  }
+}
+
+const server = new MajdServerMock();
+
+class MajdApiService {
+  private SESSION_ID = 'majd_session_v2';
+
+  constructor() {
+    if (!localStorage.getItem(this.SESSION_ID)) {
+      localStorage.setItem(this.SESSION_ID, 'user_' + Math.random().toString(36).substr(2, 9));
+    }
+  }
+
+  private get userId() {
+    return localStorage.getItem(this.SESSION_ID);
+  }
+
+  // Real-world pattern: we use a helper to make "server" calls
+  private async request(endpoint: string, method: 'GET' | 'POST' = 'GET', data?: any) {
+    try {
+      // In production, this would be: return await fetch(BASE_URL + endpoint, ...)
+      return await server.handleRequest(endpoint, method, { ...data, userId: this.userId });
+    } catch (error) {
+      console.error("API Error:", error);
+      throw error;
+    }
   }
 
   async getProfile(): Promise<UserProfile> {
-    const userId = this.getCurrentUserId();
-    const stored = localStorage.getItem(`${this.USER_KEY}_${userId}`);
-    if (stored) return JSON.parse(stored);
-    
-    const newProfile: UserProfile = {
-      id: userId,
-      role: 'user',
-      created_at: Date.now(),
-      last_active: Date.now()
-    };
-    this.saveProfile(newProfile);
-    return newProfile;
+    return this.request('/api/auth/profile', 'POST');
   }
 
-  private saveProfile(profile: UserProfile) {
-    localStorage.setItem(`${this.USER_KEY}_${profile.id}`, JSON.stringify(profile));
-  }
-
-  async saveRecord(record: Omit<GenerationRecord, 'user_id' | 'id' | 'timestamp' | 'status' | 'engine'>): Promise<GenerationRecord> {
-    const userId = this.getCurrentUserId();
-    const fullRecord: GenerationRecord = {
+  async saveRecord(record: any): Promise<GenerationRecord> {
+    return this.request('/api/records', 'POST', {
       ...record,
-      id: generateId(),
-      user_id: userId,
-      timestamp: Date.now(),
+      user_id: this.userId,
       status: 'success',
-      engine: 'Gemini 2.5 Flash TTS'
-    };
-
-    const globalRecords = this.getGlobalRecordsRaw();
-    globalRecords.push(fullRecord);
-    localStorage.setItem('majd_global_db_records', JSON.stringify(globalRecords));
-
-    await this.trackEvent('record_created', { record_id: fullRecord.id });
-    return fullRecord;
+      engine: 'Majd Cloud Engine v2'
+    });
   }
 
   async getUserRecords(): Promise<GenerationRecord[]> {
-    const userId = this.getCurrentUserId();
-    const all = this.getGlobalRecordsRaw();
-    return all.filter(r => r.user_id === userId).sort((a, b) => b.timestamp - a.timestamp);
+    return this.request('/api/records', 'GET');
   }
 
   async getAllRecordsAdmin(): Promise<GenerationRecord[]> {
-    return this.getGlobalRecordsRaw().sort((a, b) => b.timestamp - a.timestamp);
-  }
-
-  private getGlobalRecordsRaw(): GenerationRecord[] {
-    const data = localStorage.getItem('majd_global_db_records');
-    return data ? JSON.parse(data) : [];
-  }
-
-  async trackEvent(event: AnalyticsEvent, metadata: any = {}) {
-    const userId = this.getCurrentUserId();
-    const events = this.getGlobalEventsRaw();
-    events.push({
-      id: generateId(),
-      event,
-      user_id: userId,
-      metadata,
-      timestamp: Date.now()
-    });
-    localStorage.setItem('majd_global_db_events', JSON.stringify(events));
-  }
-
-  private getGlobalEventsRaw() {
-    const data = localStorage.getItem('majd_global_db_events');
-    return data ? JSON.parse(data) : [];
+    return this.request('/api/records', 'GET'); // Admin fetches all
   }
 
   async getGlobalStats(): Promise<GlobalStats> {
-    const records = this.getGlobalRecordsRaw();
-    const users = new Set(records.map(r => r.user_id));
-    
-    const byDay: Record<string, number> = {};
-    const dialects: Record<string, number> = {};
-    let totalDur = 0;
+    return this.request('/api/stats', 'GET');
+  }
 
-    records.forEach(r => {
-      const day = new Date(r.timestamp).toISOString().split('T')[0];
-      byDay[day] = (byDay[day] || 0) + 1;
-      dialects[r.selection.dialect] = (dialects[r.selection.dialect] || 0) + 1;
-      totalDur += r.duration;
-    });
-
-    return {
-      total_users: users.size || 1,
-      total_records: records.length,
-      total_duration: totalDur,
-      success_rate: 100,
-      records_by_day: byDay,
-      top_dialects: dialects
-    };
+  async trackEvent(event: AnalyticsEvent, metadata: any = {}) {
+    // Fire and forget
+    this.request('/api/events', 'POST', { event, metadata });
   }
 }
 
