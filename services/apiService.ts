@@ -6,9 +6,6 @@ const MASTER_KEY = "$2a$10$O0K2vjXYuVRdqb551DVBO.Qhd8f11FvdPzXFiGnZp5K74I8m.UP8O
 const CLOUD_API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 class MajdCloudEngine {
-  /**
-   * جلب البيانات الصافية من السحاب
-   */
   private async fetchRaw(): Promise<{ records: GenerationRecord[], sessions: SessionLog[] }> {
     try {
       const res = await fetch(`${CLOUD_API_URL}/latest`, {
@@ -18,42 +15,42 @@ class MajdCloudEngine {
         },
         cache: 'no-store'
       });
-      if (!res.ok) throw new Error("Cloud unreachable");
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const data = await res.json();
       return {
         records: Array.isArray(data.records) ? data.records : [],
         sessions: Array.isArray(data.sessions) ? data.sessions : []
       };
     } catch (e) {
-      console.error("Cloud Read Error:", e);
+      console.error("Cloud Fetch Error:", e);
       return { records: [], sessions: [] };
     }
   }
 
-  /**
-   * تحديث السحاب بالبيانات الجديدة
-   */
   private async pushToCloud(data: { records: GenerationRecord[], sessions: SessionLog[] }): Promise<boolean> {
     try {
       const res = await fetch(CLOUD_API_URL, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json', 
-          'X-Master-Key': MASTER_KEY,
-          'X-Bin-Versioning': 'false'
+          'X-Master-Key': MASTER_KEY
         },
         body: JSON.stringify(data)
       });
-      return res.ok;
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("JsonBin Rejection:", errText);
+        return false;
+      }
+      return true;
     } catch (e) {
-      console.error("Cloud Write Error:", e);
+      console.error("Cloud Push Error:", e);
       return false;
     }
   }
 
   async logSession(userId: string): Promise<SessionLog> {
     const data = await this.fetchRaw();
-    
     const newSession: SessionLog = {
       id: 'sess_' + Date.now(),
       user_id: userId,
@@ -65,30 +62,28 @@ class MajdCloudEngine {
       browser: "WebBrowser",
       device: "Standard"
     };
-
-    data.sessions = [newSession, ...data.sessions].slice(0, 30);
+    data.sessions = [newSession, ...data.sessions].slice(0, 20);
     await this.pushToCloud(data);
     return newSession;
   }
 
   async saveRecord(record: any): Promise<GenerationRecord> {
     const data = await this.fetchRaw();
-
     const newRecord: GenerationRecord = {
       ...record,
       id: 'rec_' + Date.now(),
       timestamp: Date.now(),
       status: 'success',
-      engine: 'Majd Cloud Direct v10 (Strict)'
+      engine: 'Majd Cloud v11'
     };
 
-    // تقليص العدد لـ 10 سجلات لضمان استقرار الرفع السحابي مع ملفات Base64
-    data.records = [newRecord, ...data.records].slice(0, 10);
+    // تقليص حاد لعدد السجلات لـ 3 فقط لأن حجم الـ Base64 لملفات الـ WAV ضخم جداً
+    data.records = [newRecord, ...data.records].slice(0, 3);
     
     const success = await this.pushToCloud(data);
-    if (!success) throw new Error("Cloud Persistence Failed");
-    
-    console.log("Record saved to cloud successfully");
+    if (!success) {
+      throw new Error("قاعدة البيانات السحابية رفضت الملف (غالباً بسبب الحجم الزائد لملف الصوت)");
+    }
     return newRecord;
   }
 
@@ -105,7 +100,6 @@ class MajdCloudEngine {
   async getGlobalStats(): Promise<GlobalStats> {
     const data = await this.fetchRaw();
     const uniqueUsers = new Set(data.sessions.map((s: SessionLog) => s.user_id)).size || 1;
-
     return {
       total_users: uniqueUsers,
       total_records: data.records.length,

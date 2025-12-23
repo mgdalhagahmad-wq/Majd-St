@@ -112,8 +112,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (showIntro) { setTimeout(() => { sessionStorage.setItem('majd_intro', 'true'); setShowIntro(false); }, 2500); }
-    
-    // جلب البيانات من السحاب مباشرة عند البدء
     const init = async () => {
       try {
         await api.logSession(userId);
@@ -122,10 +120,7 @@ const App: React.FC = () => {
       } catch (e) { console.warn("Init cloud failed"); }
     };
     init();
-    
-    return () => {
-      if (audioRef.current) audioRef.current.pause();
-    };
+    return () => { if (audioRef.current) audioRef.current.pause(); };
   }, [userId]);
 
   useEffect(() => {
@@ -175,7 +170,7 @@ const App: React.FC = () => {
     }
 
     setIsGenerating(true);
-    setLoadingMessage(WAITING_MESSAGES[0]);
+    setCurrentResult(null); // ريست للنتيجة السابقة
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
       const { dataUrl, duration } = await majdService.generateVoiceOver(
@@ -184,25 +179,50 @@ const App: React.FC = () => {
         `صوت ${selectedProfile.name} - ${JSON.stringify(voiceControls)}`
       );
       
-      // حفظ في السحاب مباشرة
-      const record = await api.saveRecord({
-        text: textToUse, 
+      // كائن التسجيل المؤقت
+      const tempRecord: GenerationRecord = {
+        id: 'temp_' + Date.now(),
         user_id: userId,
-        selection: { 
-          dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', 
-          type: selectedAge, 
-          field: selectedProfile.category, 
-          controls: voiceControls 
-        },
-        audio_data: dataUrl, 
-        duration: duration
-      });
+        text: textToUse,
+        audio_data: dataUrl,
+        duration: duration,
+        timestamp: Date.now(),
+        status: 'success',
+        engine: 'Local Gen',
+        selection: {
+            dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '',
+            type: selectedAge,
+            field: selectedProfile.category,
+            controls: voiceControls
+        }
+      };
 
-      setCurrentResult(record); 
-      setHistory(prev => [record, ...prev].slice(0, 10));
+      // عرض النتيجة للمستخدم فوراً
+      setCurrentResult(tempRecord);
+
+      // محاولة الحفظ في السحاب في الخلفية
+      try {
+        const cloudRecord = await api.saveRecord({
+          text: textToUse, 
+          user_id: userId,
+          selection: { 
+            dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', 
+            type: selectedAge, 
+            field: selectedProfile.category, 
+            controls: voiceControls 
+          },
+          audio_data: dataUrl, 
+          duration: duration
+        });
+        setHistory(prev => [cloudRecord, ...prev].slice(0, 5));
+      } catch (cloudError: any) {
+        console.warn("Cloud save failed but audio generated:", cloudError.message);
+        // لا نزعج المستخدم بتنبيه إذا فشل الحفظ السحابي طالما الصوت جاهز
+      }
+
     } catch (e: any) { 
-      console.error(e);
-      alert("فشل التوليد أو الحفظ السحابي. يرجى المحاولة مرة أخرى."); 
+      console.error("Generation Error:", e);
+      alert("عذراً، حدث خطأ في محرك توليد الصوت (Gemini). يرجى التأكد من النص والمحاولة لاحقاً."); 
     }
     finally { setIsGenerating(false); }
   };
@@ -211,14 +231,16 @@ const App: React.FC = () => {
     if (e) e.preventDefault();
     if (password === '41414141') {
       setIsRefreshing(true);
-      const gStats = await api.getGlobalStats();
-      const allRecords = await api.getAllRecords();
-      setStats(gStats);
-      setGlobalRecords(allRecords);
-      setIsAdminView(true);
-      setShowLogin(false);
+      try {
+        const gStats = await api.getGlobalStats();
+        const allRecords = await api.getAllRecords();
+        setStats(gStats);
+        setGlobalRecords(allRecords);
+        setIsAdminView(true);
+        setShowLogin(false);
+      } catch(e) { alert("خطأ في جلب البيانات السحابية"); }
       setIsRefreshing(false);
-    } else alert("خطأ");
+    } else alert("خطأ في كلمة المرور");
   };
 
   if (showIntro) return (
@@ -251,7 +273,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="admin-card p-10 rounded-[40px] space-y-8 overflow-hidden">
-        <h3 className="text-xl font-bold border-b border-white/5 pb-4">سجل الأصوات العالمي المباشر</h3>
+        <h3 className="text-xl font-bold border-b border-white/5 pb-4">سجل الأصوات العالمي (أحدث 3)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-right min-w-[700px]">
             <thead>
@@ -346,7 +368,7 @@ const App: React.FC = () => {
             </div>
           </div>
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all">
-            {isGenerating ? 'جاري المعالجة السحابية...' : 'توليد وحفظ في السحاب'}
+            {isGenerating ? 'جاري المعالجة...' : 'توليد الصوت'}
           </button>
         </section>
 
@@ -356,14 +378,14 @@ const App: React.FC = () => {
               <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-20 w-20 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-rose-600' : ''}`}>
                 {playingId === currentResult.id ? "Pause" : "Play"}
               </button>
-              <div className="text-right"><h4 className="text-xl font-black">جاهز للتحميل</h4><p className="text-white/40 text-sm">{currentResult.duration.toFixed(1)}s | Cloud Verified</p></div>
+              <div className="text-right"><h4 className="text-xl font-black">جاهز للتحميل</h4><p className="text-white/40 text-sm">{currentResult.duration.toFixed(1)}s | {currentResult.engine === 'Local Gen' ? 'Generated' : 'Cloud Saved'}</p></div>
             </div>
             <a href={currentResult.audio_data} download className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl transition-all">تحميل WAV</a>
           </div>
         )}
 
         <section className="glass-3d p-12 rounded-[50px] space-y-8">
-          <h3 className="text-xl font-bold flex justify-between items-center"><span>السجل الشخصي (Cloud History)</span></h3>
+          <h3 className="text-xl font-bold flex justify-between items-center"><span>السجل الشخصي (Cloud)</span></h3>
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
             {history.map((rec) => (
               <div key={rec.id} className="p-6 rounded-3xl bg-white/5 border border-white/5 flex items-center justify-between group">
@@ -376,7 +398,7 @@ const App: React.FC = () => {
                 </div>
               </div>
             ))}
-            {history.length === 0 && <div className="py-10 text-center opacity-20 text-xs">جاري سحب بياناتك من السحاب...</div>}
+            {history.length === 0 && <div className="py-10 text-center opacity-20 text-xs">لا توجد سجلات سحابية متاحة.</div>}
           </div>
         </section>
       </main>
