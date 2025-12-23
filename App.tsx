@@ -29,12 +29,24 @@ const StatCard: React.FC<{ label: string, value: string | number, icon?: string 
   </div>
 );
 
-const SelectionBlock: React.FC<{ title: string; options: string[]; current: string; set: (s: string) => void; }> = ({ title, options, current, set }) => (
+const SelectionBlock: React.FC<{ 
+  title: string; 
+  options: { label: string; icon?: string | React.ReactNode }[]; 
+  current: string; 
+  set: (s: string) => void; 
+}> = ({ title, options, current, set }) => (
   <div className="w-full space-y-4">
     <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">{title}</h3>
     <div className="flex flex-wrap justify-center gap-3">
       {options.map(opt => (
-        <button key={opt} onClick={() => set(opt)} className={`px-8 py-3 rounded-2xl border transition-all duration-300 text-sm font-bold ${current === opt ? 'brand-bg text-white shadow-lg scale-105' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10'}`}>{opt}</button>
+        <button 
+          key={opt.label} 
+          onClick={() => set(opt.label)} 
+          className={`px-6 py-4 rounded-2xl border transition-all duration-300 text-sm font-bold flex flex-col items-center gap-2 min-w-[100px] ${current === opt.label ? 'brand-bg text-white shadow-lg scale-105' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10'}`}
+        >
+          {opt.icon && <div className="text-2xl mb-1 flex items-center justify-center">{opt.icon}</div>}
+          <span>{opt.label}</span>
+        </button>
       ))}
     </div>
   </div>
@@ -119,7 +131,6 @@ const App: React.FC = () => {
     };
   }, [userId]);
 
-  // تبديل رسائل الانتظار تلقائياً
   useEffect(() => {
     let interval: any;
     if (isGenerating) {
@@ -287,7 +298,6 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
       
-      {/* طبقة التحميل الذكية (Overlay) */}
       {isGenerating && (
         <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center">
           <div className="relative mb-12">
@@ -333,11 +343,27 @@ const App: React.FC = () => {
 
       <main className="w-full max-w-6xl space-y-16">
         <section className="glass-3d p-12 rounded-[50px] space-y-12">
-          <SelectionBlock title="اللهجة العربية" options={DIALECTS.map(d=>d.title)} current={DIALECTS.find(d=>d.id===selectedDialectId)?.title || ''} set={(t) => setSelectedDialectId(DIALECTS.find(d=>d.title===t)?.id || DIALECTS[0].id)} />
+          {/* اختيار اللهجة مع الأعلام */}
+          <SelectionBlock 
+            title="اللهجة العربية" 
+            options={DIALECTS.map(d => ({ label: d.title, icon: d.flag }))} 
+            current={DIALECTS.find(d => d.id === selectedDialectId)?.title || ''} 
+            set={(t) => setSelectedDialectId(DIALECTS.find(d => d.title === t)?.id || DIALECTS[0].id)} 
+          />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t border-white/5 pt-12">
-            <SelectionBlock title="الهوية العمرية" options={VOICE_TYPES} current={selectedAge} set={setSelectedAge} />
-            <SelectionBlock title="الجنس" options={['ذكر', 'أنثى']} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
+            <SelectionBlock 
+              title="الهوية العمرية" 
+              options={VOICE_TYPES.map(t => ({ label: t, icon: t === 'بالغ' ? '🧑' : t === 'كبار السن' ? '👴' : '🎭' }))} 
+              current={selectedAge} 
+              set={setSelectedAge} 
+            />
+            <SelectionBlock 
+              title="الجنس" 
+              options={[{ label: 'ذكر', icon: '👨' }, { label: 'أنثى', icon: '👩' }]} 
+              current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} 
+              set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} 
+            />
           </div>
 
           <div className="space-y-6 pt-12 border-t border-white/5">
@@ -362,7 +388,6 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* --- قسم المخطوطة المحسن --- */}
         <section className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="relative glass-3d rounded-[40px] border-white/5 group transition-all">
