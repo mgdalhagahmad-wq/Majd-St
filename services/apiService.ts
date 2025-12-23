@@ -2,15 +2,17 @@
 import { GenerationRecord, UserProfile, GlobalStats } from '../types';
 
 /**
- * MAJD GLOBAL CLOUD ENGINE (v5.3 - ULTRA ROBUST)
- * تم تحسين محرك المزامنة لضمان استقرار الاتصال بالسحابة العالمية.
+ * MAJD GLOBAL CLOUD ENGINE (v5.6 - USER PRIVATE CLOUD)
+ * تم تحديث الإعدادات لتعمل مباشرة مع حسابك الخاص.
  */
 
-// معرّف الصندوق السحابي المشترك
-const BIN_ID = "67bd7787ad19ca34f8107c13";
+// معرف الصندوق (Bin ID) الخاص بك
+const BIN_ID = "694ac32fae596e708facad29"; 
+
+// مفتاح الماستر (Master Key) الخاص بك
+const MASTER_KEY = "$2a$10$O0K2vjXYuVRdqb551DVBO.Qhd8f11FvdPzXFiGnZp5K74I8m.UP8O"; 
+
 const CLOUD_API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
-// المفتاح الأساسي للوصول
-const MASTER_KEY = "$2a$10$W2iXG/5f.Gz475iV0j6B9.6v.hY.lX.oX.l.X.l.X.l.X.l.X.l.X"; 
 
 class MajdCloudEngine {
   private recordsCache: GenerationRecord[] = [];
@@ -19,75 +21,66 @@ class MajdCloudEngine {
     this.sync();
   }
 
-  /**
-   * جلب البيانات من السيرفر السحابي
-   * تم تحسين المعالجة لتفادي أخطاء الـ metadata و الـ undefined
-   */
   private async sync(): Promise<GenerationRecord[]> {
     try {
-      const res = await fetch(CLOUD_API_URL, {
+      const res = await fetch(`${CLOUD_API_URL}/latest`, {
         method: 'GET',
         headers: { 
           "X-Master-Key": MASTER_KEY,
-          "X-Bin-Meta": "false" // نحاول جلب البيانات الخام مباشرة
+          "X-Bin-Meta": "false" // نطلب البيانات مباشرة بدون الميتا-داتا
         }
       });
       
-      if (!res.ok) {
-        // في حال فشل جلب البيانات الخام، نحاول جلبها مع الـ Metadata كخطة بديلة
-        const fallbackRes = await fetch(CLOUD_API_URL, {
-          method: 'GET',
-          headers: { "X-Master-Key": MASTER_KEY }
-        });
-        
-        if (!fallbackRes.ok) throw new Error(`Cloud connection failed with status: ${fallbackRes.status}`);
-        
-        const fallbackData = await fallbackRes.json();
-        const remoteRecords = fallbackData.record?.records || fallbackData.record || [];
-        this.recordsCache = Array.isArray(remoteRecords) ? remoteRecords : [];
-      } else {
-        const data = await res.json();
-        // JSONBin قد يعيد البيانات مباشرة أو داخل مفتاح record
-        const remoteRecords = data.records || data.record?.records || data || [];
-        this.recordsCache = Array.isArray(remoteRecords) ? remoteRecords : [];
+      if (!res.ok) throw new Error(`Sync Error: ${res.status}`);
+      
+      const data = await res.json();
+      
+      // JSONBin v3 قد يعيد البيانات بشكل مباشر أو مغلفة في حقل record
+      let remoteRecords = [];
+      if (data.records) {
+        remoteRecords = data.records;
+      } else if (data.record && data.record.records) {
+        remoteRecords = data.record.records;
+      } else if (Array.isArray(data)) {
+        remoteRecords = data;
       }
       
-      // تحديث النسخة المحلية للطوارئ فقط
-      localStorage.setItem('majd_backup_v2', JSON.stringify(this.recordsCache));
+      this.recordsCache = Array.isArray(remoteRecords) ? remoteRecords : [];
+      localStorage.setItem('majd_v5_cache', JSON.stringify(this.recordsCache));
       return this.recordsCache;
     } catch (e) {
-      console.warn("Cloud Sync Warning: Falling back to local backup.", e);
-      const backup = localStorage.getItem('majd_backup_v2');
-      this.recordsCache = backup ? JSON.parse(backup) : [];
-      return this.recordsCache;
+      console.warn("Cloud offline, using backup.", e);
+      const local = localStorage.getItem('majd_v5_cache');
+      return local ? JSON.parse(local) : [];
     }
   }
 
-  /**
-   * دفع البيانات للسحابة ليراها باقي المستخدمين
-   */
   private async commit(allRecords: GenerationRecord[]) {
     try {
       const res = await fetch(CLOUD_API_URL, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'X-Master-Key': MASTER_KEY
+          'X-Master-Key': MASTER_KEY,
+          'X-Bin-Versioning': 'false' // لا نريد إنشاء نسخ قديمة لتوفير المساحة
         },
         body: JSON.stringify({ records: allRecords })
       });
       
-      if (!res.ok) throw new Error(`Commit failed: ${res.status}`);
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Commit failed: ${res.status} - ${err}`);
+      }
       
       this.recordsCache = allRecords;
-      localStorage.setItem('majd_backup_v2', JSON.stringify(allRecords));
+      localStorage.setItem('majd_v5_cache', JSON.stringify(allRecords));
+      console.log("Cloud synced successfully.");
     } catch (e) {
-      console.error("Cloud Commit Critical Error:", e);
+      console.error("Cloud update failed.", e);
     }
   }
 
   async handle(endpoint: string, method: string, body?: any): Promise<any> {
-    // نضمن مزامنة البيانات قبل كل عملية
     const records = await this.sync();
 
     if (endpoint === '/api/stats') {
@@ -112,7 +105,7 @@ class MajdCloudEngine {
         id: 'rec_' + Date.now() + Math.random().toString(36).substr(2, 4),
         timestamp: Date.now(), 
         status: 'success',
-        engine: 'Majd Global Cloud v5.3'
+        engine: 'Majd Private Cloud v5.6'
       };
       
       const updated = [newRecord, ...records];

@@ -43,9 +43,8 @@ const AdminDashboard: React.FC<{
   const [filter, setFilter] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Poll for new user data every 10 seconds while admin dashboard is open
   useEffect(() => {
-    const interval = setInterval(() => { onRefresh(); }, 10000);
+    const interval = setInterval(() => { onRefresh(); }, 15000);
     return () => clearInterval(interval);
   }, [onRefresh]);
 
@@ -58,7 +57,7 @@ const AdminDashboard: React.FC<{
   const filteredRecords = records.filter(r => 
     r.text.toLowerCase().includes(filter.toLowerCase()) || 
     r.user_id?.toLowerCase().includes(filter.toLowerCase()) ||
-    r.selection.dialect.includes(filter)
+    r.selection?.dialect?.includes(filter)
   );
 
   return (
@@ -95,10 +94,10 @@ const AdminDashboard: React.FC<{
         {activeTab === 'overview' && stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {[
-              { label: 'إجمالي المستخدمين عالمياً', val: stats.total_users, sub: 'Global Connections', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' },
-              { label: 'إجمالي التسجيلات السحابية', val: stats.total_records, sub: 'Cloud Store Entries', icon: 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7' },
-              { label: 'ساعات المعالجة الكلية', val: (stats.total_duration / 3600).toFixed(2), sub: 'Mastered Hours', icon: 'M12 8v4l3 3' },
-              { label: 'استقرار السيرفر العالمي', val: stats.success_rate + '%', sub: 'Uptime 24/7', icon: 'M9 12l2 2 4-4' },
+              { label: 'إجمالي المستخدمين عالمياً', val: stats.total_users, sub: 'Global Connections', icon: '' },
+              { label: 'إجمالي التسجيلات السحابية', val: stats.total_records, sub: 'Cloud Store Entries', icon: '' },
+              { label: 'ساعات المعالجة الكلية', val: (stats.total_duration / 3600).toFixed(2), sub: 'Mastered Hours', icon: '' },
+              { label: 'استقرار السيرفر العالمي', val: stats.success_rate + '%', sub: 'Uptime 24/7', icon: '' },
             ].map((card, i) => (
               <div key={i} className="glass-3d p-10 rounded-[45px] border-white/5 group">
                 <h4 className="text-5xl font-black text-white mb-2">{card.val}</h4>
@@ -123,35 +122,27 @@ const AdminDashboard: React.FC<{
                 />
              </div>
              <div className="grid grid-cols-1 gap-6">
-              {filteredRecords.map(r => (
+              {records.length > 0 ? filteredRecords.map(r => (
                 <div key={r.id} className="glass-3d p-10 rounded-[50px] flex flex-col lg:flex-row items-center justify-between gap-10 border-white/5 hover:border-cyan-500/40 transition-all">
                   <div className="text-right flex-1 space-y-6">
                     <div className="flex items-center gap-4 flex-row-reverse flex-wrap">
-                      <span className="px-5 py-2 rounded-2xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">{r.selection.dialect}</span>
+                      <span className="px-5 py-2 rounded-2xl bg-indigo-500/10 text-indigo-400 text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">{r.selection?.dialect || 'غير محدد'}</span>
                       <span className="px-5 py-2 rounded-2xl bg-green-500/10 text-green-400 text-[10px] font-black border border-green-500/20">USER: {r.user_id}</span>
-                      <span className="text-white/20 text-[10px] font-mono">REC_ID: {r.id}</span>
                     </div>
                     <p className="text-2xl text-white font-arabic leading-relaxed">"{r.text}"</p>
-                    <div className="text-[10px] text-white/20 font-mono">TIMESTAMP: {new Date(r.timestamp).toLocaleString('ar-EG')}</div>
                   </div>
                   <div className="flex items-center gap-6 bg-black/40 p-8 rounded-[40px] border border-white/5">
                     <button 
-                      onClick={() => { if(r.audio_url && r.audio_url !== '#') { const a = new Audio(r.audio_url); a.play(); } else { alert('رابط الصوت غير متوفر لهذا السجل القديم.'); } }} 
+                      onClick={() => { if(r.audio_url) { const a = new Audio(r.audio_url); a.play(); } }} 
                       className="h-20 w-20 rounded-full brand-bg text-white flex items-center justify-center shadow-2xl hover:scale-110 transition-transform"
                     >
                       <svg className="w-10 h-10 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </button>
-                    {r.audio_url && r.audio_url !== '#' && (
-                      <a href={r.audio_url} download={`majd_global_${r.id}.wav`} className="p-6 rounded-full bg-white/5 text-cyan-400 hover:bg-cyan-400 hover:text-black transition-all border border-white/10">
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                      </a>
-                    )}
                   </div>
                 </div>
-              ))}
-              {filteredRecords.length === 0 && (
+              )) : (
                 <div className="py-40 text-center opacity-10">
-                   <p className="text-3xl font-black uppercase tracking-[0.6em]">No Records Found in Global Cloud</p>
+                   <p className="text-3xl font-black uppercase tracking-[0.6em]">No Records in Cloud</p>
                 </div>
               )}
              </div>
@@ -176,13 +167,12 @@ const PasswordModal: React.FC<{ onVerify: () => void, onClose: () => void, isLoa
         <div className="glass-3d p-16 rounded-[60px] text-center space-y-12 border-white/20">
           <div className="w-24 h-24 brand-bg rounded-[35px] mx-auto flex items-center justify-center text-white shadow-[0_0_80px_rgba(139,92,246,0.6)]"><svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg></div>
           <div className="space-y-4">
-             <h2 className="text-3xl font-black text-white uppercase tracking-tighter">بوابة التحكم العالمية</h2>
-             <p className="text-white/20 text-[10px] uppercase tracking-[0.4em] font-bold italic">AUTHORIZED ACCESS ONLY</p>
+             <h2 className="text-3xl font-black text-white">بوابة التحكم العالمية</h2>
           </div>
           <form onSubmit={handleSubmit} className="space-y-8">
-            <input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-3xl py-7 text-center text-4xl tracking-[0.8em] text-cyan-400 font-mono focus:outline-none focus:border-cyan-500/50 shadow-inner" placeholder="••••" />
-            <button type="submit" disabled={isLoading} className="w-full brand-bg text-white font-black py-6 rounded-3xl text-xl shadow-2xl hover:scale-[1.02] transition-all">{isLoading ? 'Connecting to Master Cloud...' : 'فتح البوابة المركزية'}</button>
-            <button type="button" onClick={onClose} className="text-white/20 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">إغلاق</button>
+            <input type="password" autoFocus value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black/60 border border-white/10 rounded-3xl py-7 text-center text-4xl tracking-[0.8em] text-cyan-400 font-mono focus:outline-none" placeholder="••••" />
+            <button type="submit" disabled={isLoading} className="w-full brand-bg text-white font-black py-6 rounded-3xl text-xl">{isLoading ? 'Connecting...' : 'فتح البوابة'}</button>
+            <button type="button" onClick={onClose} className="text-white/20 text-xs hover:text-white">إغلاق</button>
           </form>
         </div>
       </div>
@@ -215,7 +205,6 @@ const App: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Use a stable userId for the browser session
   const userId = useMemo(() => {
     let id = localStorage.getItem('majd_global_user_id');
     if (!id) {
@@ -232,9 +221,13 @@ const App: React.FC = () => {
     }
   }, [showIntro]);
 
+  const fetchUserData = async () => {
+    const records = await api.getUserRecords(userId);
+    setHistory(records);
+  };
+
   useEffect(() => {
-    const sync = async () => { setHistory(await api.getUserRecords(userId)); };
-    sync();
+    fetchUserData();
   }, [userId]);
 
   const loadAdminData = async () => {
@@ -245,6 +238,8 @@ const App: React.FC = () => {
       setAllRecords(all); 
       setShowAdmin(true); 
       setIsVerifying(false);
+    } catch (e) {
+      alert("فشل في جلب البيانات من السحاب. تأكد من إعدادات JSONBin.");
     } finally { setIsAdminLoading(false); }
   };
 
@@ -273,6 +268,7 @@ const App: React.FC = () => {
     try {
       const baseVoice = getBaseVoiceForType(selectedType, selectedGender === 'ذكر' ? 'male' : 'female');
       const { url, duration } = await majdService.generateVoiceOver(textToUse, baseVoice, JSON.stringify(voiceControls));
+      
       const record = await api.saveRecord({
         text: textToUse,
         user_id: userId,
@@ -280,72 +276,65 @@ const App: React.FC = () => {
         audio_url: url,
         duration: duration
       });
+      
       setCurrentResult(record); 
       setHistory(prev => [record, ...prev]);
       if (audioRef.current) { audioRef.current.src = url; audioRef.current.play(); setIsPlaying(true); }
+    } catch (e) {
+      console.error("Generation Error:", e);
+      alert("حدث خطأ في توليد الصوت. تأكد من مفتاح الـ API.");
     } finally { setIsGenerating(false); }
   };
 
   if (showIntro) return (
     <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
       <div className="text-center animate-in fade-in zoom-in duration-1000">
-        <h1 className="tech-logo text-7xl md:text-9xl tracking-[0.5em]">Majd</h1>
-        <p className="text-white/20 text-xs tracking-[1.5em] uppercase font-bold animate-pulse mt-8">Connecting to Master Cloud...</p>
+        <h1 className="tech-logo text-7xl md:text-9xl">Majd</h1>
+        <p className="text-white/20 text-xs tracking-[1.5em] uppercase font-bold animate-pulse mt-8">CLOUD SYNC ACTIVE</p>
       </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative overflow-x-hidden" dir="rtl">
-      <div className="fixed top-[10%] left-[5%] w-[800px] h-[800px] bg-indigo-500/5 blur-[120px] rounded-full pointer-events-none" />
-      <div className="fixed bottom-[10%] right-[5%] w-[800px] h-[800px] bg-cyan-500/5 blur-[120px] rounded-full pointer-events-none" />
-
       {isVerifying && <PasswordModal onVerify={loadAdminData} onClose={() => setIsVerifying(false)} isLoading={isAdminLoading} />}
       {showAdmin && <AdminDashboard stats={globalStats} records={allRecords} onRefresh={loadAdminData} onClose={() => setShowAdmin(false)} />}
 
       <div className="fixed top-8 left-8 z-50">
-        <button onClick={() => setIsVerifying(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs uppercase tracking-widest flex items-center gap-3 hover:scale-105 transition-all">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+        <button onClick={() => setIsVerifying(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs flex items-center gap-3">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
           البوابة العالمية
         </button>
       </div>
 
       <header className="mb-24 text-center z-10">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-24 w-24 brand-bg rounded-[30px] flex items-center justify-center shadow-3xl mb-4 rotate-3">
-             <svg viewBox="0 0 24 24" className="h-12 w-12 text-white" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-          </div>
-          <h1 className="tech-logo text-6xl md:text-8xl">Majd</h1>
-          <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Cloud-Linked Audio Studio</p>
-        </div>
+        <h1 className="tech-logo text-6xl md:text-8xl mb-4">Majd</h1>
+        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Cloud Audio Studio</p>
       </header>
 
       <main className="w-full max-w-5xl space-y-24 z-10">
-        {/* Step 1: Dialect */}
-        <section className="glass-3d p-16 rounded-[50px] animate-in slide-in-from-bottom-8 duration-700">
+        <section className="glass-3d p-16 rounded-[50px]">
           <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">١. اختيار الهوية اللغوية</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {DIALECTS.map(d => (
-              <button key={d.id} onClick={() => setSelectedDialectId(d.id)} className={`p-8 rounded-[35px] text-right border-2 transition-all duration-500 ${selectedDialectId === d.id ? 'border-cyan-500/40 bg-cyan-500/5 shadow-2xl' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+              <button key={d.id} onClick={() => setSelectedDialectId(d.id)} className={`p-8 rounded-[35px] text-right border-2 transition-all ${selectedDialectId === d.id ? 'border-cyan-500/40 bg-cyan-500/5' : 'border-white/5 bg-white/5'}`}>
                 <h4 className="text-xl font-bold mb-2">{d.title}</h4>
-                <p className="text-[10px] text-white/30 leading-relaxed">{d.description}</p>
+                <p className="text-[10px] text-white/30">{d.description}</p>
               </button>
             ))}
           </div>
         </section>
 
-        {/* Step 2: Personality */}
-        <section className="glass-3d p-16 rounded-[50px] space-y-16 animate-in slide-in-from-bottom-8 duration-700 delay-100">
+        <section className="glass-3d p-16 rounded-[50px] space-y-16">
            <SelectionBlock title="٢. الهوية العمرية" options={VOICE_TYPES} current={selectedType} set={setSelectedType} />
            <div className="flex justify-center gap-6">
               {['ذكر', 'أنثى'].map(g => (
-                <button key={g} onClick={() => setSelectedGender(g)} className={`px-12 py-4 rounded-full border-2 font-bold text-sm transition-all ${selectedGender === g ? 'border-indigo-500 bg-indigo-500/20 text-white' : 'border-white/5 bg-white/5 text-white/30'}`}>{g}</button>
+                <button key={g} onClick={() => setSelectedGender(g)} className={`px-12 py-4 rounded-full border-2 font-bold text-sm ${selectedGender === g ? 'border-indigo-500 bg-indigo-500/20 text-white' : 'border-white/5 bg-white/5 text-white/30'}`}>{g}</button>
               ))}
            </div>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {filteredProfiles.map(p => (
-                <button key={p.name} onClick={() => setSelectedVoiceName(p.name)} className={`p-6 rounded-[35px] border-2 transition-all text-center space-y-3 ${selectedVoiceName === p.name ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/5 bg-white/5'}`}>
-                  <div className="w-12 h-12 rounded-2xl brand-bg mx-auto flex items-center justify-center text-white/50 text-xs">VO</div>
+                <button key={p.name} onClick={() => setSelectedVoiceName(p.name)} className={`p-6 rounded-[35px] border-2 transition-all text-center ${selectedVoiceName === p.name ? 'border-cyan-400 bg-cyan-400/10' : 'border-white/5 bg-white/5'}`}>
                   <p className="font-bold text-sm">{p.name}</p>
                   <p className="text-[9px] text-white/20 uppercase tracking-widest">{p.category}</p>
                 </button>
@@ -353,8 +342,7 @@ const App: React.FC = () => {
            </div>
         </section>
 
-        {/* Step 3: Engineering Controls */}
-        <section className="glass-3d p-16 rounded-[50px] animate-in slide-in-from-bottom-8 duration-700 delay-200">
+        <section className="glass-3d p-16 rounded-[50px]">
           <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-[0.4em] text-center mb-16">٣. غرفة المعالجة الهندسية</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             {Object.entries(STUDIO_CONTROLS).map(([k, c]) => (
@@ -363,49 +351,29 @@ const App: React.FC = () => {
           </div>
         </section>
 
-        {/* Step 4: Text Input & Generation */}
-        <section className="glass-3d p-16 rounded-[50px] space-y-10 animate-in slide-in-from-bottom-8 duration-700 delay-300">
+        <section className="glass-3d p-16 rounded-[50px] space-y-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <textarea className="w-full h-64 bg-black/40 border border-white/5 rounded-[40px] p-8 text-xl text-white outline-none focus:border-cyan-500/20 resize-none text-right" placeholder="اكتب النص الأساسي هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
-            <textarea className="w-full h-64 bg-indigo-500/5 border border-indigo-500/10 rounded-[40px] p-8 text-xl text-indigo-100 outline-none resize-none text-right" placeholder="المخطوطة النهائية المعدلة..." value={processedText} readOnly />
+            <textarea className="w-full h-64 bg-black/40 border border-white/5 rounded-[40px] p-8 text-xl text-white outline-none text-right" placeholder="اكتب النص الأساسي هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
+            <textarea className="w-full h-64 bg-indigo-500/5 border border-indigo-500/10 rounded-[40px] p-8 text-xl text-indigo-100 outline-none text-right" placeholder="المخطوطة النهائية المعدلة..." value={processedText} readOnly />
           </div>
-          <button onClick={handlePreprocess} disabled={isPreprocessing || !inputText.trim()} className="w-full py-5 rounded-[25px] border border-cyan-500/20 bg-cyan-500/5 text-cyan-400 text-xs font-bold tracking-[0.4em] uppercase hover:bg-cyan-400 hover:text-black transition-all disabled:opacity-30">
-            {isPreprocessing ? 'جاري التحسين الذكي...' : 'تحسين المخطوطة إبداعياً'}
+          <button onClick={handlePreprocess} disabled={isPreprocessing || !inputText.trim()} className="w-full py-5 rounded-[25px] border border-cyan-500/20 bg-cyan-500/5 text-cyan-400 text-xs font-bold tracking-[0.4em] uppercase">
+            {isPreprocessing ? 'جاري التحسين...' : 'تحسين المخطوطة'}
           </button>
         </section>
 
         <section className="flex justify-center pb-20">
-          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim()} className={`w-full max-w-2xl py-12 rounded-full font-bold text-2xl flex items-center justify-center gap-6 shadow-3xl transition-all ${isGenerating ? 'bg-white/5 text-white/20' : 'brand-bg text-white hover:scale-105'}`}>
-            {isGenerating ? (
-              <div className="flex items-center gap-4">
-                <div className="animate-spin h-10 w-10 border-4 border-t-white border-white/20 rounded-full" />
-                <span className="text-sm font-mono tracking-tighter uppercase opacity-40">Syncing to Master Cloud...</span>
-              </div>
-            ) : 'بدء توليد الأداء (Cloud Master)'}
+          <button onClick={handleGenerate} disabled={isGenerating || !inputText.trim()} className={`w-full max-w-2xl py-12 rounded-full font-bold text-2xl flex items-center justify-center gap-6 shadow-3xl ${isGenerating ? 'bg-white/5 text-white/20' : 'brand-bg text-white'}`}>
+            {isGenerating ? 'جاري التوليد السحابي...' : 'بدء توليد الأداء (Cloud Master)'}
           </button>
         </section>
 
         {currentResult && (
-          <section className="glass-3d p-16 rounded-[60px] border-cyan-500/20 animate-in zoom-in duration-1000 text-center space-y-12">
-             <div className="space-y-2">
-                <div className="text-xs text-green-500 font-bold uppercase tracking-[0.2em] mb-4">Cloud Data Synchronized</div>
-                <h3 className="text-4xl font-bold brand-text">MASTER OUTPUT READY</h3>
-                <p className="text-[10px] text-white/20 uppercase font-mono">Cloud Record ID: {currentResult.id}</p>
-             </div>
-             <div className="w-full max-w-2xl p-12 rounded-[50px] bg-black/50 mx-auto space-y-10 border border-white/5">
-                <button onClick={() => { if(isPlaying) audioRef.current?.pause(); else audioRef.current?.play(); setIsPlaying(!isPlaying); }} className="h-24 w-24 rounded-full brand-bg text-white flex items-center justify-center mx-auto shadow-2xl hover:scale-110 transition-transform">
-                   {isPlaying ? <svg className="w-10 h-10" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg> : <svg className="w-10 h-10 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>}
+          <section className="glass-3d p-16 rounded-[60px] border-cyan-500/20 text-center space-y-12">
+             <h3 className="text-4xl font-bold brand-text">MASTER OUTPUT READY</h3>
+             <div className="w-full max-w-2xl p-12 rounded-[50px] bg-black/50 mx-auto space-y-10">
+                <button onClick={() => { if(isPlaying) audioRef.current?.pause(); else audioRef.current?.play(); setIsPlaying(!isPlaying); }} className="h-24 w-24 rounded-full brand-bg text-white flex items-center justify-center mx-auto">
+                   {isPlaying ? 'Pause' : 'Play'}
                 </button>
-                <div className="flex justify-center gap-4">
-                  <a 
-                    href={currentResult.audio_url} 
-                    download={`majd_voice_cloud.wav`}
-                    className="flex items-center gap-3 px-10 py-5 rounded-3xl bg-white/5 border border-white/10 text-cyan-400 font-black text-sm hover:bg-cyan-400 hover:text-black transition-all shadow-xl"
-                  >
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    تحميل الملف (WAV)
-                  </a>
-                </div>
              </div>
           </section>
         )}
