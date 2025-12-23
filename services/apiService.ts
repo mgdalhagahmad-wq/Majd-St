@@ -45,10 +45,10 @@ class MajdEngine {
         user_id: userId,
         start_time: Date.now(),
         last_active: Date.now(),
-        country: "Unknown",
-        country_code: "WW",
-        city: "Unknown",
-        region: "Unknown",
+        country: "Egypt", // Default or mock
+        country_code: "EG",
+        city: "Cairo",
+        region: "MENA",
         ip: "0.0.0.0",
         browser: device.browser,
         os: device.os,
@@ -153,23 +153,38 @@ class MajdEngine {
     } catch (e) { return []; }
   }
 
+  private aggregate(arr: any[], key: string) {
+    const counts = arr.reduce((acc: any, curr: any) => {
+      const val = curr[key] || "Unknown";
+      acc[val] = (acc[val] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count: count as number, code: name === 'Egypt' ? 'EG' : 'WW' }))
+      .sort((a, b) => b.count - a.count);
+  }
+
   async getGlobalStats(): Promise<GlobalStats> {
     try {
       const [recRes, sessRes] = await Promise.all([
         fetch(`${SUPABASE_URL}/rest/v1/records?select=id,duration,rating`, { headers: this.headers }),
-        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=user_id`, { headers: this.headers })
+        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=user_id,country,browser,os,city`, { headers: this.headers })
       ]);
       const records = await recRes.json();
       const sessions = await sessRes.json();
       if (!Array.isArray(sessions) || !Array.isArray(records)) throw new Error();
       const rated = records.filter((r: any) => r.rating > 0);
+      
       return {
         total_users: new Set(sessions.map((s: any) => s.user_id)).size,
         total_records: records.length,
         total_visits: sessions.length,
         total_duration: records.reduce((a: any, b: any) => a + (b.duration || 0), 0),
         avg_rating: rated.length > 0 ? Number((rated.reduce((a: any, b: any) => a + b.rating, 0) / rated.length).toFixed(1)) : 5.0,
-        top_countries: [], top_browsers: [], top_os: [], top_cities: []
+        top_countries: this.aggregate(sessions, 'country'),
+        top_browsers: this.aggregate(sessions, 'browser'),
+        top_os: this.aggregate(sessions, 'os'),
+        top_cities: this.aggregate(sessions, 'city')
       };
     } catch (e) {
       return { total_users: 0, total_records: 0, total_visits: 0, total_duration: 0, avg_rating: 5, top_countries: [], top_browsers: [], top_os: [], top_cities: [] };

@@ -198,33 +198,87 @@ const App: React.FC = () => {
   );
 
   if (isAdminView && stats) return (
-    <div className="min-h-screen bg-[#020617] text-white p-12 font-arabic">
+    <div className="min-h-screen bg-[#020617] text-white p-12 font-arabic overflow-y-auto custom-scrollbar">
       <header className="flex justify-between items-center mb-12">
-        <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
-        <button onClick={() => setIsAdminView(false)} className="px-6 py-3 rounded-2xl brand-bg font-bold">العودة للاستوديو</button>
+        <div>
+          <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
+          <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Real-time Cloud Analytics</p>
+        </div>
+        <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all">العودة للاستوديو</button>
       </header>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
-        <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
-        <StatCard label="المقاطع" value={stats.total_records} icon="⚡" />
-        <StatCard label="التقييم" value={stats.avg_rating} icon="⭐" />
+        <StatCard label="إجمالي الزيارات" value={stats.total_visits} icon="👁️" />
+        <StatCard label="المستخدمين الفريدين" value={stats.total_users} icon="👥" />
+        <StatCard label="المقاطع المولدة" value={stats.total_records} icon="⚡" />
+        <StatCard label="متوسط التقييم" value={stats.avg_rating} icon="⭐" />
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+         {/* Top Countries */}
+         <div className="admin-card p-8 rounded-[40px]">
+            <h3 className="text-sm font-bold text-cyan-400 mb-6 uppercase tracking-widest">أعلى الدول 🌍</h3>
+            <div className="space-y-4">
+               {stats.top_countries.map((c, i) => (
+                 <div key={i} className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                     <span className="text-xl">{c.name === 'Egypt' ? '🇪🇬' : '🌐'}</span>
+                     <span className="text-sm font-medium">{c.name}</span>
+                   </div>
+                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count}</span>
+                 </div>
+               ))}
+            </div>
+         </div>
+
+         {/* Top Browsers */}
+         <div className="admin-card p-8 rounded-[40px]">
+            <h3 className="text-sm font-bold text-indigo-400 mb-6 uppercase tracking-widest">المتصفحات والأجهزة 💻</h3>
+            <div className="space-y-4">
+               {stats.top_browsers.map((b, i) => (
+                 <div key={i} className="flex items-center justify-between">
+                   <span className="text-sm font-medium">{b.name}</span>
+                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{b.count}</span>
+                 </div>
+               ))}
+            </div>
+         </div>
+
+         {/* Top OS */}
+         <div className="admin-card p-8 rounded-[40px]">
+            <h3 className="text-sm font-bold text-purple-400 mb-6 uppercase tracking-widest">أنظمة التشغيل ⚙️</h3>
+            <div className="space-y-4">
+               {stats.top_os.map((o, i) => (
+                 <div key={i} className="flex items-center justify-between">
+                   <span className="text-sm font-medium">{o.name}</span>
+                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{o.count}</span>
+                 </div>
+               ))}
+            </div>
+         </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="admin-card p-8 rounded-[40px]">
-          <h3 className="text-lg font-bold mb-6">أحدث التقييمات السحابية</h3>
-          <div className="space-y-4">{feedbacks.map((f, i) => (
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>💬</span> أحدث آراء المستخدمين</h3>
+          <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{feedbacks.map((f, i) => (
             <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between">
-              <div><RatingStars rating={f.rating} /><p className="text-sm italic mt-2">"{f.comment || 'بدون تعليق'}"</p></div>
+              <div><RatingStars rating={f.rating} /><p className="text-sm italic mt-2 text-white/70">"{f.comment || 'بدون تعليق'}"</p></div>
               <span className="text-[10px] opacity-30">{new Date(f.timestamp).toLocaleDateString()}</span>
             </div>
           ))}</div>
         </div>
         <div className="admin-card p-8 rounded-[40px]">
-           <h3 className="text-lg font-bold mb-6">سجل العمليات</h3>
-           <div className="space-y-4">{globalRecords.slice(0, 10).map((r, i) => (
-             <div key={i} className="p-4 rounded-2xl bg-white/5 flex justify-between items-center">
-               <div className="text-xs truncate max-w-[200px]">"{r.text}"</div>
-               <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400">▶</button>
+           <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>🎙️</span> سجل العمليات السحابي</h3>
+           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{globalRecords.map((r, i) => (
+             <div key={i} className="p-4 rounded-2xl bg-white/5 flex justify-between items-center group">
+               <div className="text-xs truncate max-w-[250px] text-white/60">"{r.text}"</div>
+               <div className="flex items-center gap-3">
+                 <span className="text-[9px] opacity-20">{new Date(r.timestamp).toLocaleTimeString()}</span>
+                 <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all">
+                   {playingId === r.id ? '⏸' : '▶'}
+                 </button>
+               </div>
              </div>
            ))}</div>
         </div>
