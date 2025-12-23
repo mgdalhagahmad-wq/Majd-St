@@ -29,10 +29,12 @@ export interface GenerationRecord {
   text: string;
   selection: VoiceSelection;
   timestamp: number;
-  audio_data: string; // تم التغيير من audio_url لتخزين Base64
+  audio_url: string; 
+  audio_data: string; 
   duration: number;
   status: 'success' | 'error';
   engine: string;
+  rating: number; 
 }
 
 export interface SessionLog {
@@ -42,19 +44,23 @@ export interface SessionLog {
   last_active: number;
   country: string;
   country_code: string;
-  referrer: string;
+  city: string;
+  region: string;
   browser: string;
+  os: string;
   device: string;
+  ip: string;
+  referrer: string;
 }
 
 export interface GlobalStats {
   total_users: number;
   total_records: number;
+  total_visits: number;
   total_duration: number;
-  success_rate: number;
-  avg_voices_per_user: number;
-  avg_session_duration: number; 
-  top_countries: { name: string, count: number }[];
-  top_sources: { url: string, count: number }[];
-  device_stats: Record<string, number>;
+  avg_rating: number;
+  top_countries: { name: string, count: number, code: string }[];
+  top_browsers: { name: string, count: number }[];
+  top_os: { name: string, count: number }[];
+  top_cities: { name: string, count: number }[];
 }
