@@ -41,7 +41,7 @@ const SelectionBlock: React.FC<{ title: string; options: { label: string; icon?:
     <div className="flex flex-wrap justify-center gap-3">
       {options.map(opt => (
         <button key={opt.label} onClick={() => set(opt.label)} className={`px-6 py-4 rounded-2xl border transition-all text-sm font-bold flex flex-col items-center gap-2 min-w-[100px] ${current === opt.label ? 'brand-bg text-white shadow-lg scale-105' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10'}`}>
-          {opt.icon && <div className="text-2xl mb-1">{opt.icon}</div>}
+          {opt.icon && <div className="mb-1">{opt.icon}</div>}
           <span>{opt.label}</span>
         </button>
       ))}
@@ -191,6 +191,18 @@ const App: React.FC = () => {
     setIsSubmittingFeedback(false);
   };
 
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if(password === '41414141') {
+      const [s, r, f] = await Promise.all([api.getGlobalStats(), api.getAllRecords(), api.getFeedbacks()]);
+      setStats(s);
+      setGlobalRecords(r);
+      setFeedbacks(f);
+      setIsAdminView(true);
+      setShowLogin(false);
+    } else alert("كلمة السر غلط يا مدير");
+  };
+
   if (showIntro) return (
     <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
       <div className="text-center animate-pulse"><h1 className="tech-logo text-7xl md:text-9xl">Majd</h1><p className="text-white/20 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">NEXT-GEN STUDIO VO</p></div>
@@ -202,16 +214,16 @@ const App: React.FC = () => {
       <header className="flex justify-between items-center mb-12">
         <div>
           <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
-          <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Real-time Cloud Analytics</p>
+          <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Analytics Dashboard Pro</p>
         </div>
-        <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all">العودة للاستوديو</button>
+        <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
       </header>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-        <StatCard label="إجمالي الزيارات" value={stats.total_visits} icon="👁️" />
-        <StatCard label="المستخدمين الفريدين" value={stats.total_users} icon="👥" />
-        <StatCard label="المقاطع المولدة" value={stats.total_records} icon="⚡" />
-        <StatCard label="متوسط التقييم" value={stats.avg_rating} icon="⭐" />
+        <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
+        <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
+        <StatCard label="المقاطع" value={stats.total_records} icon="⚡" />
+        <StatCard label="التقييم" value={stats.avg_rating} icon="⭐" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
@@ -222,10 +234,9 @@ const App: React.FC = () => {
                {stats.top_countries.map((c, i) => (
                  <div key={i} className="flex items-center justify-between">
                    <div className="flex items-center gap-3">
-                     <span className="text-xl">{c.name === 'Egypt' ? '🇪🇬' : '🌐'}</span>
                      <span className="text-sm font-medium">{c.name}</span>
                    </div>
-                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count}</span>
+                   <span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count} زيارة</span>
                  </div>
                ))}
             </div>
@@ -260,7 +271,7 @@ const App: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="admin-card p-8 rounded-[40px]">
-          <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>💬</span> أحدث آراء المستخدمين</h3>
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>💬</span> الآراء الأخيرة</h3>
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{feedbacks.map((f, i) => (
             <div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between">
               <div><RatingStars rating={f.rating} /><p className="text-sm italic mt-2 text-white/70">"{f.comment || 'بدون تعليق'}"</p></div>
@@ -269,13 +280,12 @@ const App: React.FC = () => {
           ))}</div>
         </div>
         <div className="admin-card p-8 rounded-[40px]">
-           <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>🎙️</span> سجل العمليات السحابي</h3>
+           <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><span>🎙️</span> سجل العمليات</h3>
            <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{globalRecords.map((r, i) => (
              <div key={i} className="p-4 rounded-2xl bg-white/5 flex justify-between items-center group">
                <div className="text-xs truncate max-w-[250px] text-white/60">"{r.text}"</div>
                <div className="flex items-center gap-3">
-                 <span className="text-[9px] opacity-20">{new Date(r.timestamp).toLocaleTimeString()}</span>
-                 <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all">
+                 <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400">
                    {playingId === r.id ? '⏸' : '▶'}
                  </button>
                </div>
@@ -310,8 +320,8 @@ const App: React.FC = () => {
 
       {showLogin && (
         <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-6">
-          <form onSubmit={(e)=>{e.preventDefault(); if(password==='41414141'){ api.getGlobalStats().then(s=>setStats(s)); api.getAllRecords().then(r=>setGlobalRecords(r)); api.getFeedbacks().then(f=>setFeedbacks(f)); setIsAdminView(true); setShowLogin(false); } else alert("خطأ");}} className="glass-3d w-full max-w-md p-12 rounded-[50px] space-y-8 text-center">
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="رمز المرور السحابي" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl" />
+          <form onSubmit={handleAdminLogin} className="glass-3d w-full max-w-md p-12 rounded-[50px] space-y-8 text-center">
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="رمز المرور" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl" />
             <button className="w-full brand-bg py-5 rounded-2xl font-bold">دخول المدير</button>
             <button type="button" onClick={()=>setShowLogin(false)} className="text-white/20 text-xs">إلغاء</button>
           </form>
@@ -347,29 +357,31 @@ const App: React.FC = () => {
 
         <section className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
-            <div className="relative glass-3d rounded-[40px] p-8">
+            <div className="relative glass-3d rounded-[40px] p-8 border border-white/5">
               <label className="text-[10px] text-white/30 absolute top-4 right-8 font-bold uppercase tracking-widest">النص الأصلي</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white/60 text-right outline-none resize-none pt-4" placeholder="اكتب النص هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
+              
+              {/* زرار محسن النص للموبايل */}
+              <div className="lg:hidden flex justify-end mt-2">
+                 <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:scale-105 transition-all">
+                   <span>🪄</span> محسن النص AI
+                 </button>
+              </div>
             </div>
             
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden lg:block">
-              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="h-16 w-16 rounded-full brand-bg text-white shadow-xl hover:scale-110 transition-all flex items-center justify-center group">
-                <span className="text-2xl group-hover:rotate-12 transition-transform">🪄</span>
+            {/* زرار محسن النص للديسكتوب */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:block">
+              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="h-20 w-20 rounded-full brand-bg text-white shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:scale-110 transition-all flex items-center justify-center group border-4 border-[#020617]">
+                <span className="text-3xl group-hover:rotate-12 transition-transform">🪄</span>
               </button>
             </div>
 
-            <div className={`relative glass-3d rounded-[40px] p-8 border-cyan-500/20 ${refinedText ? 'opacity-100' : 'opacity-20'}`}>
-              <label className="text-[10px] text-cyan-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن بالذكاء الاصطناعي</label>
-              <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4" placeholder="النص المحسن سيظهر هنا..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
+            <div className={`relative glass-3d rounded-[40px] p-8 border-cyan-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-cyan-500/50' : 'opacity-30'}`}>
+              <label className="text-[10px] text-cyan-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
+              <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
           
-          <div className="lg:hidden flex justify-center -mt-3">
-             <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-3 rounded-full brand-bg text-white font-bold text-sm shadow-lg flex items-center gap-2">
-               <span>🪄</span> تحسين النص
-             </button>
-          </div>
-
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8">توليد ورفع الصوت</button>
         </section>
 
