@@ -4,6 +4,76 @@ import { DIALECTS, VOICE_TYPES, VOICE_FIELDS, STUDIO_CONTROLS, CATEGORY_STYLES, 
 import { GenerationHistory, VoiceControls } from './types';
 import { savioService } from './services/geminiService';
 
+// --- Password Protection Modal ---
+const PasswordModal: React.FC<{ onVerify: () => void, onClose: () => void }> = ({ onVerify, onClose }) => {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+  const correctPassword = '41414141';
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === correctPassword) {
+      onVerify();
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 1000);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-[#030712]/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
+      <div className={`glass-3d p-12 rounded-[45px] max-w-md w-full border border-white/10 text-center space-y-8 transition-transform ${error ? 'animate-shake' : ''}`}>
+        <div className="w-20 h-20 brand-bg rounded-3xl flex items-center justify-center mx-auto shadow-2xl">
+          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-white">تحقق من الهوية</h2>
+          <p className="text-white/40 text-xs font-bold uppercase tracking-widest">منطقة محظورة لمشرفي الاستوديو</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <input 
+            type="password" 
+            autoFocus
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`w-full bg-black/40 border ${error ? 'border-red-500' : 'border-white/10'} rounded-2xl py-5 px-6 text-center text-2xl tracking-[0.5em] text-cyan-400 focus:outline-none focus:border-cyan-500/50 transition-all font-mono`}
+            placeholder="••••••••"
+          />
+          {error && <p className="text-red-500 text-xs font-bold animate-pulse">كلمة المرور غير صحيحة، حاول مجدداً</p>}
+          
+          <div className="flex gap-4">
+            <button 
+              type="submit"
+              className="flex-1 brand-bg text-white font-bold py-5 rounded-2xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-indigo-500/20"
+            >
+              دخول
+            </button>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="px-8 bg-white/5 text-white/40 font-bold py-5 rounded-2xl hover:bg-white/10 transition-all"
+            >
+              إلغاء
+            </button>
+          </div>
+        </form>
+      </div>
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-8px); }
+          75% { transform: translateX(8px); }
+        }
+        .animate-shake { animation: shake 0.2s ease-in-out 0s 2; }
+      `}</style>
+    </div>
+  );
+};
+
 // --- Dashboard Component ---
 const StudioDashboard: React.FC<{ 
   onClose: () => void, 
@@ -34,6 +104,7 @@ const StudioDashboard: React.FC<{
   const [activeTab, setActiveTab] = useState<'stats' | 'recordings'>('stats');
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewProgress, setPreviewProgress] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(10);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -49,12 +120,12 @@ const StudioDashboard: React.FC<{
   }, []);
 
   const handleShare = async (item: GenerationHistory) => {
-    const shareText = `استمع إلى هذا الأداء الصوتي من "استوديو مجد":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة MAJD STUDIO VO`;
+    const shareText = `استمع إلى هذا الأداء الصوتي من "Majd Studio":\n\nاللهجة: ${item.selection.dialect}\nالنص: ${item.text}\n\nتم التوليد بواسطة MAJD STUDIO VO`;
     
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'مشاركة تسجيل من استوديو مجد',
+          title: 'مشاركة تسجيل من Majd Studio',
           text: shareText,
           url: window.location.href
         });
@@ -90,6 +161,14 @@ const StudioDashboard: React.FC<{
     }
   };
 
+  const loadMore = () => {
+    setVisibleCount(prev => prev + 10);
+  };
+
+  const sortedHistory = [...history].reverse();
+  const visibleHistory = sortedHistory.slice(0, visibleCount);
+  const hasMore = visibleCount < history.length;
+
   return (
     <div className="fixed inset-0 z-[80] bg-[#030712]/95 backdrop-blur-2xl p-6 md:p-12 overflow-y-auto animate-in fade-in zoom-in duration-500" dir="rtl">
       {/* Hidden Preview Audio Engine */}
@@ -99,8 +178,8 @@ const StudioDashboard: React.FC<{
         {/* Header */}
         <div className="flex flex-col md:flex-row items-center justify-between border-b border-white/5 pb-8 gap-6">
           <div>
-            <h2 className="text-4xl font-bold brand-text">مركز تحكم مجد</h2>
-            <p className="text-white/30 text-xs uppercase tracking-[0.4em] mt-2 text-center md:text-right">Studio Intelligence & Archive</p>
+            <h2 className="text-4xl font-bold brand-text uppercase font-montserrat tracking-tight">Majd Studio</h2>
+            <p className="text-white/30 text-[10px] uppercase tracking-[0.4em] mt-2 text-center md:text-right">Intelligence Control Center</p>
           </div>
           
           <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5">
@@ -206,85 +285,101 @@ const StudioDashboard: React.FC<{
                 <p className="text-sm text-white/10 mt-2">ابدأ بتوليد أول أداء صوتي ليظهر هنا في الأرشيف</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {history.slice().reverse().map((item) => (
-                  <div 
-                    key={item.id} 
-                    onMouseEnter={() => startPreview(item)}
-                    onMouseLeave={() => stopPreview()}
-                    className={`glass-3d p-8 rounded-[40px] border border-white/5 group transition-all flex flex-col justify-between gap-6 relative overflow-hidden ${previewId === item.id ? 'border-cyan-500/40 ring-1 ring-cyan-500/20 translate-y-[-4px]' : 'hover:border-white/20'}`}
-                  >
+              <div className="space-y-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {visibleHistory.map((item) => (
                     <div 
-                      className="absolute bottom-0 right-0 h-1 bg-cyan-400 transition-all duration-100 ease-out origin-right" 
-                      style={{ width: previewId === item.id ? `${previewProgress}%` : '0%' }}
-                    />
+                      key={item.id} 
+                      onMouseEnter={() => startPreview(item)}
+                      onMouseLeave={() => stopPreview()}
+                      className={`glass-3d p-8 rounded-[40px] border border-white/5 group transition-all flex flex-col justify-between gap-6 relative overflow-hidden ${previewId === item.id ? 'border-cyan-500/40 ring-1 ring-cyan-500/20 translate-y-[-4px]' : 'hover:border-white/20'}`}
+                    >
+                      <div 
+                        className="absolute bottom-0 right-0 h-1 bg-cyan-400 transition-all duration-100 ease-out origin-right" 
+                        style={{ width: previewId === item.id ? `${previewProgress}%` : '0%' }}
+                      />
 
-                    <div className="flex justify-between items-start gap-4 flex-row-reverse z-10">
-                      <div className="flex gap-3">
-                        <button 
-                          onClick={() => handleShare(item)}
-                          className="h-14 w-14 rounded-xl bg-white/5 border border-white/10 text-white/30 flex items-center justify-center hover:bg-cyan-500/10 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
-                          title="مشاركة"
-                        >
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                          </svg>
-                        </button>
-                        <button 
-                          onClick={() => onPlayHistory(item)}
-                          className={`h-14 w-14 rounded-xl flex items-center justify-center shadow-xl transition-all ${previewId === item.id ? 'bg-cyan-400 text-black scale-110' : 'brand-bg text-white hover:scale-105'}`}
-                          title="تشغيل كامل"
-                        >
-                          <svg className="w-7 h-7 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        </button>
+                      <div className="flex justify-between items-start gap-4 flex-row-reverse z-10">
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => handleShare(item)}
+                            className="h-14 w-14 rounded-xl bg-white/5 border border-white/10 text-white/30 flex items-center justify-center hover:bg-cyan-500/10 hover:text-cyan-400 hover:border-cyan-500/30 transition-all"
+                            title="مشاركة"
+                          >
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={() => onPlayHistory(item)}
+                            className={`h-14 w-14 rounded-xl flex items-center justify-center shadow-xl transition-all ${previewId === item.id ? 'bg-cyan-400 text-black scale-110' : 'brand-bg text-white hover:scale-105'}`}
+                            title="تشغيل كامل"
+                          >
+                            <svg className="w-7 h-7 translate-x-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                          </button>
+                        </div>
+                        
+                        <div className="text-right overflow-hidden flex-1">
+                          <div className="flex items-center justify-end gap-2 mb-1">
+                            {previewId === item.id && (
+                              <div className="flex gap-0.5 items-end h-3 animate-pulse">
+                                <div className="w-0.5 h-1 bg-cyan-400 animate-[pulse_0.5s_infinite]"></div>
+                                <div className="w-0.5 h-3 bg-cyan-400 animate-[pulse_0.7s_infinite]"></div>
+                                <div className="w-0.5 h-2 bg-cyan-400 animate-[pulse_0.4s_infinite]"></div>
+                              </div>
+                            )}
+                            <h5 className={`font-bold text-lg truncate transition-colors ${previewId === item.id ? 'text-cyan-400' : 'text-white'}`}>
+                              {item.selection.dialect}
+                            </h5>
+                          </div>
+                          <div className="flex gap-3 mt-1 flex-row-reverse flex-wrap">
+                            <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-cyan-400/80' : 'text-cyan-400/60'}`}>{item.selection.type}</span>
+                            <span className="text-[10px] text-white/20">•</span>
+                            <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-indigo-400' : 'text-indigo-400/60'}`}>{item.selection.field}</span>
+                          </div>
+                        </div>
                       </div>
                       
-                      <div className="text-right overflow-hidden flex-1">
-                        <div className="flex items-center justify-end gap-2 mb-1">
-                          {previewId === item.id && (
-                            <div className="flex gap-0.5 items-end h-3 animate-pulse">
-                              <div className="w-0.5 h-1 bg-cyan-400 animate-[pulse_0.5s_infinite]"></div>
-                              <div className="w-0.5 h-3 bg-cyan-400 animate-[pulse_0.7s_infinite]"></div>
-                              <div className="w-0.5 h-2 bg-cyan-400 animate-[pulse_0.4s_infinite]"></div>
-                            </div>
-                          )}
-                          <h5 className={`font-bold text-lg truncate transition-colors ${previewId === item.id ? 'text-cyan-400' : 'text-white'}`}>
-                            {item.selection.dialect}
-                          </h5>
-                        </div>
-                        <div className="flex gap-3 mt-1 flex-row-reverse flex-wrap">
-                          <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-cyan-400/80' : 'text-cyan-400/60'}`}>{item.selection.type}</span>
-                          <span className="text-[10px] text-white/20">•</span>
-                          <span className={`text-[10px] font-bold uppercase transition-colors ${previewId === item.id ? 'text-indigo-400' : 'text-indigo-400/60'}`}>{item.selection.field}</span>
-                        </div>
+                      <div className={`p-5 rounded-2xl transition-all duration-500 ${previewId === item.id ? 'bg-cyan-500/5' : 'bg-black/20'}`}>
+                        <p className={`text-sm text-right leading-relaxed italic line-clamp-2 transition-all duration-500 ${previewId === item.id ? 'text-white/80 scale-[1.01]' : 'text-white/40'}`}>
+                          "{item.text}"
+                        </p>
                       </div>
-                    </div>
-                    
-                    <div className={`p-5 rounded-2xl transition-all duration-500 ${previewId === item.id ? 'bg-cyan-500/5' : 'bg-black/20'}`}>
-                      <p className={`text-sm text-right leading-relaxed italic line-clamp-2 transition-all duration-500 ${previewId === item.id ? 'text-white/80 scale-[1.01]' : 'text-white/40'}`}>
-                        "{item.text}"
-                      </p>
-                    </div>
 
-                    <div className="flex justify-between items-center text-[10px] font-bold text-white/10 uppercase tracking-widest pt-2">
-                      <div className={`flex items-center gap-2 transition-opacity duration-300 ${previewId === item.id ? 'opacity-100' : 'opacity-0'}`}>
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></div>
-                        <span className="text-cyan-400">معاينة مباشرة</span>
-                      </div>
-                      <div className="flex gap-4">
-                        <span>{new Date(item.timestamp).toLocaleTimeString('ar-EG')}</span>
-                        <span>{new Date(item.timestamp).toLocaleDateString('ar-EG')}</span>
+                      <div className="flex justify-between items-center text-[10px] font-bold text-white/10 uppercase tracking-widest pt-2">
+                        <div className={`flex items-center gap-2 transition-opacity duration-300 ${previewId === item.id ? 'opacity-100' : 'opacity-0'}`}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></div>
+                          <span className="text-cyan-400">معاينة مباشرة</span>
+                        </div>
+                        <div className="flex gap-4">
+                          <span>{new Date(item.timestamp).toLocaleTimeString('ar-EG')}</span>
+                          <span>{new Date(item.timestamp).toLocaleDateString('ar-EG')}</span>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
+
+                {hasMore && (
+                  <div className="flex justify-center pt-8">
+                    <button 
+                      onClick={loadMore}
+                      className="px-12 py-5 rounded-2xl glass-3d border border-white/10 text-white/60 font-bold text-xs uppercase tracking-[0.3em] hover:text-cyan-400 hover:border-cyan-500/30 hover:scale-105 transition-all shadow-xl flex items-center gap-4 group"
+                    >
+                      <span>تحميل المزيد من الأرشيف</span>
+                      <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
             )}
           </div>
         )}
 
         <div className="glass-3d p-10 rounded-[45px]">
-          <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em] mb-10 text-center">حالة المحرك والنظام (Engine Health)</h3>
+          <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-[0.4em] mb-10 text-center">حالة محرك MAJD (Engine Health)</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
               { name: 'Gemini 3 Flash', status: 'Online', color: 'text-green-400' },
@@ -467,6 +562,7 @@ const ControlGroup: React.FC<{ id: string; title: string; options: { label: stri
 const App: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => sessionStorage.getItem('majd_intro_played') !== 'true');
   const [showDashboard, setShowDashboard] = useState<boolean>(false);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [totalGens, setTotalGens] = useState<number>(() => parseInt(localStorage.getItem('majd_total_gens') || '0'));
   const [history, setHistory] = useState<GenerationHistory[]>(() => {
     const saved = localStorage.getItem('majd_history');
@@ -591,7 +687,7 @@ const App: React.FC = () => {
 
       <div className="absolute top-8 left-8 z-50">
         <button 
-          onClick={() => setShowDashboard(true)}
+          onClick={() => setIsVerifying(true)}
           className="flex items-center gap-4 px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-xs uppercase tracking-widest hover:bg-cyan-500/10 transition-all shadow-2xl group"
         >
           <svg className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -601,6 +697,13 @@ const App: React.FC = () => {
           لوحة الإحصائيات والأرشيف
         </button>
       </div>
+
+      {isVerifying && (
+        <PasswordModal 
+          onVerify={() => { setIsVerifying(false); setShowDashboard(true); }} 
+          onClose={() => setIsVerifying(false)} 
+        />
+      )}
 
       {showDashboard && (
         <StudioDashboard 
@@ -619,8 +722,8 @@ const App: React.FC = () => {
             </svg>
           </div>
           <div>
-            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight">استوديو مجد</h1>
-            <p className="text-white/40 text-xs uppercase tracking-[0.7em] font-semibold mt-3">Elite Arabic Voice Lab</p>
+            <h1 className="text-6xl md:text-7xl font-bold brand-text tracking-tight leading-tight uppercase font-montserrat">Majd Studio</h1>
+            <p className="text-white/40 text-[10px] uppercase tracking-[0.7em] font-semibold mt-3">Elite Arabic Voice Lab</p>
           </div>
         </div>
       </header>
@@ -753,7 +856,7 @@ const App: React.FC = () => {
 
       <footer className="mt-48 text-center relative z-10">
         <div className="h-px w-56 bg-gradient-to-r from-transparent via-white/10 to-transparent mx-auto mb-12"></div>
-        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; ٢٠٢٤ استوديو مجد</p>
+        <p className="text-[11px] text-white/30 uppercase tracking-[1em] font-medium">&copy; 2024 Majd Studio</p>
         <p className="text-[9px] text-white/10 mt-3 tracking-[0.4em] uppercase">Powered by MAJD Engine & Gemini AI</p>
       </footer>
       <audio ref={audioRef} className="hidden" />

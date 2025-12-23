@@ -78,7 +78,7 @@ export const DIALECTS: DialectInfo[] = [
   },
   {
     id: 'levantine',
-    title: 'اللهجة الشامية',
+    title: 'اللهجة السورية',
     description: 'صوت عذب، موسيقي، رائع للروايات والقصص الرومانسية والدراما.',
     profiles: [
       { name: 'ربيع', gender: 'male', voiceType: 'بالغ', category: 'وثائقي درامي', categoryKey: 'doc', description: 'صوت ذكوري شامي عميق ومؤثر يناسب الوثائقيات الروايات التاريخية بنبرة درامية قوية.' },
