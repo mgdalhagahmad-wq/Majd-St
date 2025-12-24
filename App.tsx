@@ -35,6 +35,29 @@ const StatCard: React.FC<{ label: string, value: string | number, icon?: string 
   </div>
 );
 
+const DetailedStatList: React.FC<{ title: string; items: { name: string; count: number; code?: string }[]; total: number; color: string }> = ({ title, items, total, color }) => (
+  <div className="admin-card p-6 rounded-[32px] border border-white/5">
+    <h4 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-6 border-b border-white/5 pb-4">{title}</h4>
+    <div className="space-y-4">
+      {items.map((item, idx) => (
+        <div key={idx} className="space-y-1">
+          <div className="flex justify-between text-[11px] font-bold">
+            <span className="text-white/80">{item.name}</span>
+            <span className="text-white/40">{item.count}</span>
+          </div>
+          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full ${color} transition-all duration-1000`} 
+              style={{ width: `${(item.count / total) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <p className="text-[10px] opacity-20 italic text-center py-4">لا توجد بيانات</p>}
+    </div>
+  </div>
+);
+
 const SelectionBlock: React.FC<{ title: string; options: { label: string; icon?: any }[]; current: string; set: (s: string) => void; }> = ({ title, options, current, set }) => (
   <div className="w-full space-y-4">
     <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">{title}</h3>
@@ -104,8 +127,14 @@ const App: React.FC = () => {
   }, [selectedDialectId, selectedAge, selectedGender]);
 
   useEffect(() => {
-    if (availableProfiles.length > 0) setSelectedProfile(availableProfiles[0]);
-  }, [availableProfiles]);
+    if (availableProfiles.length > 0) {
+      if (!selectedProfile || !availableProfiles.some(p => p.name === selectedProfile.name)) {
+        setSelectedProfile(availableProfiles[0]);
+      }
+    } else {
+      setSelectedProfile(null);
+    }
+  }, [availableProfiles, selectedProfile]);
 
   useEffect(() => {
     if (showIntro) { setTimeout(() => { sessionStorage.setItem('majd_intro', 'true'); setShowIntro(false); }, 2500); }
@@ -153,16 +182,13 @@ const App: React.FC = () => {
         personality: selectedProfile?.name || 'معلق صوتي'
       });
       setRefinedText(result);
-    } catch (e) {
-      alert("فشل تحسين النص.");
-    } finally {
-      setIsPreprocessing(false);
-    }
+    } catch (e) { alert("فشل تحسين النص."); }
+    finally { setIsPreprocessing(false); }
   };
 
   const handleGenerate = async () => {
     const textToUse = refinedText || inputText;
-    if (!textToUse.trim() || !selectedProfile) return alert("دخل النص يا نجم!");
+    if (!textToUse.trim() || !selectedProfile) return alert("اختر شخصية وادخل نص أولاً!");
     setIsGenerating(true);
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
@@ -174,19 +200,19 @@ const App: React.FC = () => {
       });
       setCurrentResult(record);
       setHistory(prev => [record, ...prev]);
-    } catch (e) { alert("خطأ سحابي: تأكد من وجود الجداول في Supabase Storage."); }
+    } catch (e) { alert("خطأ في السيرفر أو التخزين."); }
     finally { setIsGenerating(false); }
   };
 
   const handleSubmitFeedback = async () => {
-    if (feedbackRating === 0) return alert("فين النجوم يا وحش؟");
+    if (feedbackRating === 0) return alert("فين النجوم؟");
     setIsSubmittingFeedback(true);
     const success = await api.submitFeedback(userId, feedbackRating, feedbackComment);
     if (success) {
       setFeedbackSent(true);
       const updated = await api.getFeedbacks();
       setPublicFeedbacks(updated || []);
-    } else alert("فشل الإرسال للسيرفر.");
+    } else alert("فشل الإرسال.");
     setIsSubmittingFeedback(false);
   };
 
@@ -199,7 +225,7 @@ const App: React.FC = () => {
       setFeedbacks(f);
       setIsAdminView(true);
       setShowLogin(false);
-    } else alert("كلمة السر غلط يا مدير");
+    } else alert("كلمة السر غلط");
   };
 
   const getCatIcon = (key: string) => {
@@ -222,20 +248,62 @@ const App: React.FC = () => {
       <header className="flex justify-between items-center mb-12">
         <div>
           <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
-          <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Analytics Dashboard Pro</p>
+          <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Advanced Analytics Dashboard Pro</p>
         </div>
         <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
       </header>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
         <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
         <StatCard label="المقاطع" value={stats.total_records} icon="⚡" />
         <StatCard label="التقييم" value={stats.avg_rating} icon="⭐" />
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
-         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-cyan-400 mb-6 uppercase tracking-widest">أعلى الدول 🌍</h3><div className="space-y-4">{stats.top_countries.map((c, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{c.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{c.count}</span></div>))}</div></div>
-         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-indigo-400 mb-6 uppercase tracking-widest">المتصفحات 💻</h3><div className="space-y-4">{stats.top_browsers.map((b, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{b.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{b.count}</span></div>))}</div></div>
-         <div className="admin-card p-8 rounded-[40px]"><h3 className="text-sm font-bold text-purple-400 mb-6 uppercase tracking-widest">أنظمة التشغيل ⚙️</h3><div className="space-y-4">{stats.top_os.map((o, i) => (<div key={i} className="flex items-center justify-between"><span className="text-sm font-medium">{o.name}</span><span className="text-xs bg-white/5 px-3 py-1 rounded-full">{o.count}</span></div>))}</div></div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        <DetailedStatList title="أعلى الدول زيارة" items={stats.top_countries} total={stats.total_visits} color="bg-cyan-500" />
+        <DetailedStatList title="أعلى المدن" items={stats.top_cities} total={stats.total_visits} color="bg-indigo-500" />
+        <DetailedStatList title="أنظمة التشغيل" items={stats.top_os} total={stats.total_visits} color="bg-emerald-500" />
+        <DetailedStatList title="المتصفحات" items={stats.top_browsers} total={stats.total_visits} color="bg-orange-500" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="admin-card p-8 rounded-[40px] flex flex-col">
+          <h3 className="text-lg font-bold mb-6">🎙️ سجل العمليات (Records)</h3>
+          <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2 flex-1">
+            {globalRecords.length > 0 ? globalRecords.map((r, i) => (
+              <div key={i} className="p-5 rounded-2xl bg-white/5 border border-white/10 flex justify-between items-center group hover:bg-white/10 transition-all">
+                <div className="flex-1 truncate ml-4">
+                  <p className="text-sm text-white font-medium mb-1 truncate leading-relaxed">"{r.text}"</p>
+                  <div className="flex gap-2 text-[10px] opacity-40 mt-1">
+                    <span>{new Date(r.timestamp).toLocaleString('ar-EG')}</span>
+                    <span className="text-cyan-400">| {r.selection.dialect}</span>
+                    <span className="text-indigo-400">| {r.selection.field}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                   <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all">
+                     {playingId === r.id ? '⏸' : '▶'}
+                   </button>
+                </div>
+              </div>
+            )) : <div className="text-center py-20 opacity-20 italic">لا توجد بيانات مسجلة حالياً</div>}
+          </div>
+        </div>
+        <div className="admin-card p-8 rounded-[40px]">
+          <h3 className="text-lg font-bold mb-6">💬 التقييمات العامة</h3>
+          <div className="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+            {feedbacks.length > 0 ? feedbacks.map((f, i) => (
+              <div key={i} className="p-5 rounded-2xl bg-white/5 border border-white/10 space-y-3 transition-all hover:bg-white/10">
+                <div className="flex justify-between items-center">
+                  <RatingStars rating={f.rating} />
+                  <span className="text-[10px] opacity-20">{new Date(f.timestamp).toLocaleDateString('ar-EG')}</span>
+                </div>
+                <p className="text-xs italic text-white/70 leading-relaxed">"{f.comment || 'بدون تعليق إضافي'}"</p>
+              </div>
+            )) : <div className="text-center py-20 opacity-20">لا توجد تقييمات حالياً</div>}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -279,14 +347,15 @@ const App: React.FC = () => {
             <SelectionBlock title="الجنس" options={[{ label: 'ذكر', icon: <StudioIcons.Male /> }, { label: 'أنثى', icon: <StudioIcons.Female /> }]} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 pt-12 border-t border-white/5">
-            {availableProfiles.map(profile => (
-              <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-6 rounded-2xl border transition-all text-center space-y-3 ${selectedProfile?.name === profile.name ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+          <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">اختيار المعلق الصوتي</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t border-white/5">
+            {availableProfiles.length > 0 ? availableProfiles.map(profile => (
+              <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-6 rounded-2xl border transition-all text-center space-y-3 ${selectedProfile?.name === profile.name ? 'border-cyan-500 bg-cyan-500/10 scale-105 shadow-xl shadow-cyan-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
                 <div className="flex justify-center text-cyan-400">{getCatIcon(profile.categoryKey)}</div>
                 <div className="text-xs font-bold">{profile.name}</div>
                 <div className="text-[9px] opacity-30">{profile.category}</div>
               </button>
-            ))}
+            )) : <div className="col-span-full py-16 text-center text-white/20 border border-dashed border-white/10 rounded-3xl">عذراً، هذا النوع غير متوفر حالياً لهذه اللهجة</div>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-12 border-t border-white/5">
@@ -305,13 +374,9 @@ const App: React.FC = () => {
                  <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg hover:scale-105 transition-all">محسن النص AI</button>
               </div>
             </div>
-            
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:block">
-              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-105 transition-all border border-white/10">
-                محسن النص AI
-              </button>
+              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-105 transition-all border border-white/10">محسن النص AI</button>
             </div>
-
             <div className={`relative glass-3d rounded-[40px] p-8 border-cyan-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-cyan-500/50' : 'opacity-30'}`}>
               <label className="text-[10px] text-cyan-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
@@ -321,13 +386,14 @@ const App: React.FC = () => {
         </section>
 
         {currentResult && (
-          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center gap-8">
               <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-24 w-24 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-rose-600' : ''}`}>
                 <span className="text-3xl">{playingId === currentResult.id ? "⏸" : "▶"}</span>
               </button>
               <div className="text-right">
                 <h4 className="text-2xl font-black">جاهز يا بطل! 🎙️</h4>
+                <div className="mt-4 text-xs opacity-40">الصوت: {selectedProfile?.name} | اللهجة: {DIALECTS.find(d => d.id === selectedDialectId)?.title}</div>
                 <div className="mt-4"><RatingStars rating={currentResult.rating} interactive onRate={(r) => { api.updateRating(currentResult.id, r); setCurrentResult({...currentResult, rating: r}); }} /></div>
               </div>
             </div>
@@ -356,15 +422,15 @@ const App: React.FC = () => {
         <section className="glass-3d p-12 rounded-[50px] space-y-8">
           <h3 className="text-xl font-bold">أحدث أعمالك 📂</h3>
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-            {history.map((rec) => (
-              <div key={rec.id} className="p-6 rounded-3xl bg-white/5 flex items-center justify-between">
-                <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">{playingId === rec.id ? "■" : "▶"}</button>
+            {history.length > 0 ? history.map((rec) => (
+              <div key={rec.id} className="p-6 rounded-3xl bg-white/5 flex items-center justify-between hover:bg-white/10 transition-all border border-transparent hover:border-white/5">
+                <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
                 <div className="text-right flex-1 truncate ml-4">
-                  <p className="text-sm truncate">"{rec.text}"</p>
-                  <span className="text-[10px] opacity-20">{new Date(rec.timestamp).toLocaleDateString()}</span>
+                  <p className="text-sm truncate text-white/80">"{rec.text}"</p>
+                  <span className="text-[10px] opacity-20">{new Date(rec.timestamp).toLocaleDateString('ar-EG')}</span>
                 </div>
               </div>
-            ))}
+            )) : <div className="text-center py-10 opacity-20">ابدأ بتوليد أول صوت لتظهر هنا</div>}
           </div>
         </section>
       </main>
