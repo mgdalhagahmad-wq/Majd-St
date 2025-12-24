@@ -285,6 +285,11 @@ const App: React.FC = () => {
                    <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all">
                      {playingId === r.id ? '⏸' : '▶'}
                    </button>
+                   <a href={r.audio_data} download={`vo_${r.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-indigo-500 hover:text-white transition-all">
+                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
+                     </svg>
+                   </a>
                 </div>
               </div>
             )) : <div className="text-center py-20 opacity-20 italic">لا توجد بيانات مسجلة حالياً</div>}
