@@ -1,6 +1,26 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
+// دالة مساعدة لمحاولة إعادة الطلب في حال وجود خطأ 429
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  let delay = 2000; // البداية بانتظار ثانيتين
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      // إذا كان الخطأ هو كثرة الطلبات (429) ولم نتجاوز الحد الأقصى للمحاولات
+      if (error.status === 429 && i < maxRetries - 1) {
+        console.warn(`خطأ 429: تم الوصول للحد الأقصى، محاولة الإعادة رقم ${i + 1} بعد ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // زيادة وقت الانتظار بشكل أسي (Exponential Backoff)
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("Maximum retries reached");
+}
+
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -78,7 +98,7 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 
 export class MajdStudioService {
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
-    try {
+    return withRetry(async () => {
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key is missing");
       const ai = new GoogleGenAI({ apiKey });
@@ -90,14 +110,11 @@ export class MajdStudioService {
       });
       
       return response.text || text;
-    } catch (error) {
-      console.error("Preprocessing error:", error);
-      return text;
-    }
+    });
   }
 
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
-    try {
+    return withRetry(async () => {
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key is missing");
       const ai = new GoogleGenAI({ apiKey });
@@ -128,10 +145,7 @@ export class MajdStudioService {
       const dataUrl = await blobToDataURL(wavBlob);
       
       return { dataUrl, duration: audioBuffer.duration };
-    } catch (error: any) {
-      console.error("TTS Generation Error:", error);
-      throw error;
-    }
+    });
   }
 }
 

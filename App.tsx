@@ -120,6 +120,9 @@ const App: React.FC = () => {
   const [currentWaitMsgIndex, setCurrentWaitMsgIndex] = useState(0);
   const [currentResult, setCurrentResult] = useState<GenerationRecord | null>(null);
 
+  // لمنع الضغط المتكرر
+  const [cooldown, setCooldown] = useState(false);
+
   const availableProfiles = useMemo(() => {
     const dialect = DIALECTS.find(d => d.id === selectedDialectId);
     if (!dialect) return [];
@@ -172,8 +175,9 @@ const App: React.FC = () => {
   };
 
   const handleRefineText = async () => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || cooldown) return;
     setIsPreprocessing(true);
+    setCooldown(true);
     try {
       const dialect = DIALECTS.find(d => d.id === selectedDialectId)?.title || 'عربية فصحى';
       const result = await savioService.preprocessText(inputText, {
@@ -182,14 +186,27 @@ const App: React.FC = () => {
         personality: selectedProfile?.name || 'معلق صوتي محترف'
       });
       setRefinedText(result);
-    } catch (e) { console.error(e); }
-    finally { setIsPreprocessing(false); }
+    } catch (e: any) { 
+        console.error(e);
+        if (e.status === 429) {
+            alert("⚠️ عذراً، هناك ضغط كبير على المحرك حالياً. يرجى الانتظار 30 ثانية قبل المحاولة مجدداً.");
+        } else {
+            alert("حدث خطأ أثناء تحسين النص. حاول لاحقاً.");
+        }
+    }
+    finally { 
+        setIsPreprocessing(false); 
+        setTimeout(() => setCooldown(false), 3000); // تبريد لـ 3 ثواني
+    }
   };
 
   const handleGenerate = async () => {
     const textToUse = refinedText || inputText;
-    if (!textToUse.trim() || !selectedProfile) return alert("اختر شخصية وادخل نص أولاً!");
+    if (!textToUse.trim() || !selectedProfile || cooldown) return;
+    
     setIsGenerating(true);
+    setCooldown(true);
+
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
       const { dataUrl, duration } = await savioService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}، بأسلوب ${selectedProfile.category}`);
@@ -222,9 +239,16 @@ const App: React.FC = () => {
       setHistory(prev => [record, ...prev]);
     } catch (e: any) { 
       console.error("Generation error:", e);
-      alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي: " + (e.message || "يرجى المحاولة مرة أخرى."));
+      if (e.message?.includes("429") || e.status === 429) {
+          alert("🚨 المحرك مشغول جداً حالياً (خطأ 429). \nهذا يحدث بسبب سياسة الاستخدام المجاني لـ Gemini. \nيرجى المحاولة بعد دقيقة واحدة.");
+      } else {
+          alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي: " + (e.message || "يرجى المحاولة مرة أخرى."));
+      }
     }
-    finally { setIsGenerating(false); }
+    finally { 
+        setIsGenerating(false); 
+        setTimeout(() => setCooldown(false), 5000); // تبريد لـ 5 ثواني
+    }
   };
 
   const handleSubmitFeedback = async () => {
@@ -346,6 +370,7 @@ const App: React.FC = () => {
           <h2 className="tech-logo text-7xl animate-pulse mb-12">MAJD</h2>
           <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 max-w-lg w-full transform transition-all animate-bounce">
              <p className="text-2xl font-bold text-white leading-relaxed">{WAITING_MESSAGES[currentWaitMsgIndex]}</p>
+             {isGenerating && <p className="text-sm text-amber-500/60 mt-4 italic">إذا استغرق الأمر وقتاً أطول، فالمحرك يحاول تجاوز ضغط الطلبات...</p>}
           </div>
         </div>
       )}
@@ -402,18 +427,18 @@ const App: React.FC = () => {
               <label className="text-[10px] text-white/30 absolute top-4 right-8 font-bold uppercase tracking-widest">النص الأصلي</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white/60 text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="اكتب النص هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
               <div className="lg:hidden flex justify-end mt-2">
-                 <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg hover:scale-105 transition-all">محسن النص AI</button>
+                 <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing || cooldown} className={`px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg hover:scale-105 transition-all ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>محسن النص AI</button>
               </div>
             </div>
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:block">
-              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:scale-105 transition-all border border-white/10">محسن النص AI</button>
+              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing || cooldown} className={`px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:scale-105 transition-all border border-white/10 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>محسن النص AI</button>
             </div>
             <div className={`relative glass-3d rounded-[40px] p-8 border-amber-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-amber-500/50' : 'opacity-30'}`}>
               <label className="text-[10px] text-amber-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
               <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
-          <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8">توليد ورفع الصوت</button>
+          <button onClick={handleGenerate} disabled={isGenerating || cooldown} className={`w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>{cooldown && !isGenerating ? "انتظار (تبريد المحرك)..." : "توليد ورفع الصوت"}</button>
         </section>
 
         {currentResult && (
