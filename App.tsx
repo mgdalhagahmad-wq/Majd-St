@@ -48,7 +48,7 @@ const DetailedStatList: React.FC<{ title: string; items: { name: string; count: 
           <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full ${color} transition-all duration-1000`} 
-              style={{ width: `${(item.count / total) * 100}%` }}
+              style={{ width: total > 0 ? `${(item.count / total) * 100}%` : '0%' }}
             />
           </div>
         </div>
@@ -182,7 +182,7 @@ const App: React.FC = () => {
         personality: selectedProfile?.name || 'معلق صوتي'
       });
       setRefinedText(result);
-    } catch (e) { alert("فشل تحسين النص."); }
+    } catch (e) { console.error(e); }
     finally { setIsPreprocessing(false); }
   };
 
@@ -193,14 +193,37 @@ const App: React.FC = () => {
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
       const { dataUrl, duration } = await majdService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}`);
-      const record = await api.saveRecord({
-        text: textToUse, user_id: userId,
-        selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
-        audio_data: dataUrl, duration
-      });
+      
+      // عملية الحفظ للسيرفر اختيارية لضمان عدم تعطل المستخدم إذا فشل السيرفر
+      let record: GenerationRecord;
+      try {
+        record = await api.saveRecord({
+          text: textToUse, user_id: userId,
+          selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
+          audio_data: dataUrl, duration
+        });
+      } catch (storageErr) {
+        console.warn("Storage Error, showing local copy", storageErr);
+        record = {
+          id: 'local_' + Date.now(),
+          user_id: userId,
+          text: textToUse,
+          selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
+          timestamp: Date.now(),
+          audio_url: dataUrl,
+          audio_data: dataUrl,
+          duration: duration,
+          status: 'success',
+          engine: 'Majd Local Engine',
+          rating: 0
+        };
+      }
+      
       setCurrentResult(record);
       setHistory(prev => [record, ...prev]);
-    } catch (e) { alert("خطأ في السيرفر أو التخزين."); }
+    } catch (e) { 
+      alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي. يرجى المحاولة مرة أخرى.");
+    }
     finally { setIsGenerating(false); }
   };
 
@@ -212,7 +235,7 @@ const App: React.FC = () => {
       setFeedbackSent(true);
       const updated = await api.getFeedbacks();
       setPublicFeedbacks(updated || []);
-    } else alert("فشل الإرسال.");
+    }
     setIsSubmittingFeedback(false);
   };
 
@@ -277,8 +300,8 @@ const App: React.FC = () => {
                   <p className="text-sm text-white font-medium mb-1 truncate leading-relaxed">"{r.text}"</p>
                   <div className="flex gap-2 text-[10px] opacity-40 mt-1">
                     <span>{new Date(r.timestamp).toLocaleString('ar-EG')}</span>
-                    <span className="text-cyan-400">| {r.selection.dialect}</span>
-                    <span className="text-indigo-400">| {r.selection.field}</span>
+                    <span className="text-cyan-400">| {r.selection?.dialect}</span>
+                    <span className="text-indigo-400">| {r.selection?.field}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -402,7 +425,7 @@ const App: React.FC = () => {
                 <div className="mt-4"><RatingStars rating={currentResult.rating} interactive onRate={(r) => { api.updateRating(currentResult.id, r); setCurrentResult({...currentResult, rating: r}); }} /></div>
               </div>
             </div>
-            <a href={currentResult.audio_data} download className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
+            <a href={currentResult.audio_data} download={`maj_vo_${currentResult.id}.wav`} className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
           </div>
         )}
 
@@ -430,9 +453,16 @@ const App: React.FC = () => {
             {history.length > 0 ? history.map((rec) => (
               <div key={rec.id} className="p-6 rounded-3xl bg-white/5 flex items-center justify-between hover:bg-white/10 transition-all border border-transparent hover:border-white/5">
                 <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
-                <div className="text-right flex-1 truncate ml-4">
+                <div className="text-right flex-1 truncate mx-4">
                   <p className="text-sm truncate text-white/80">"{rec.text}"</p>
                   <span className="text-[10px] opacity-20">{new Date(rec.timestamp).toLocaleDateString('ar-EG')}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                   <a href={rec.audio_data} download={`my_vo_${rec.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-indigo-500 hover:text-white transition-all">
+                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
+                     </svg>
+                   </a>
                 </div>
               </div>
             )) : <div className="text-center py-10 opacity-20">ابدأ بتوليد أول صوت لتظهر هنا</div>}
