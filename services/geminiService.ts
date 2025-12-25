@@ -1,25 +1,23 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay = 2000): Promise<T> {
+// نظام إعادة محاولة مخصص
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 2, initialDelay = 1000): Promise<T> {
   let delay = initialDelay; 
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       const errorMsg = (error?.message || "").toLowerCase();
-      const isQuotaError = errorMsg.includes("429") || errorMsg.includes("quota") || errorMsg.includes("limit");
-      
-      if (isQuotaError && i < maxRetries - 1) {
-        const jitter = Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay + jitter));
+      if ((errorMsg.includes("429") || errorMsg.includes("quota")) && i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
         delay *= 2;
         continue;
       }
       throw error;
     }
   }
-  throw new Error("تجاوزت حدود الاستخدام. يرجى مراجعة Google Cloud Quotas.");
+  throw new Error("فشل الاتصال بمحرك جوجل.");
 }
 
 function decode(base64: string) {
@@ -99,16 +97,14 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 
 export class MajdStudioService {
   private getApiKey(): string {
-    const key = process.env.API_KEY;
-    if (!key || key === "undefined" || key.length < 5) {
-      throw new Error("API Key غير موجود.");
-    }
-    return key;
+    return process.env.API_KEY || "";
   }
 
-  async testConnection(): Promise<{ textOk: boolean, voiceOk: boolean, message: string }> {
+  // فحص دقيق للحالة
+  async testConnection(): Promise<{ textOk: boolean, voiceOk: boolean, message: string, quotaStatus: string }> {
     let textOk = false;
     let voiceOk = false;
+    let quotaStatus = "Unknown";
     let msg = "";
 
     const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
@@ -122,98 +118,94 @@ export class MajdStudioService {
     }
 
     try {
-      // محاولة التوليد باستخدام الموديل الأساسي أولاً
       await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: "test" }] }],
         config: { responseModalities: [Modality.AUDIO] }
       });
       voiceOk = true;
+      quotaStatus = "Ready";
       msg += "✅ صوت (TTS): يعمل.";
     } catch (e: any) {
-      // محاولة الموديل البديل في الفحص أيضاً
-      try {
-        await ai.models.generateContent({
-          model: "gemini-2.5-flash-native-audio-preview-09-2025",
-          contents: [{ parts: [{ text: "test" }] }],
-          config: { responseModalities: [Modality.AUDIO] }
-        });
-        voiceOk = true;
-        msg += "⚠️ صوت (TTS): الموديل الأساسي معطل ولكن البديل يعمل!";
-      } catch (e2: any) {
-        msg += `❌ صوت (TTS): كلاهما معطل. خطأ: ${e.message}`;
+      const errorStr = JSON.stringify(e);
+      if (errorStr.includes("limit\": 0") || errorStr.includes("limit: 0")) {
+        quotaStatus = "Restricted (Limit 0)";
+        msg += "⚠️ صوت (TTS): حصتك لهذا الموديل هي 0 في Google Cloud.";
+      } else {
+        msg += `❌ صوت (TTS): ${e.message}`;
       }
     }
 
-    return { textOk, voiceOk, message: msg };
+    return { textOk, voiceOk, message: msg, quotaStatus };
   }
 
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
-    return withRetry(async () => {
-      const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
-      const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
+    const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
+    const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+    return response.text || text;
+  }
+
+  // توليد صوت محلي (Fallback) باستخدام متصفح المستخدم
+  async generateLocalVoiceOver(text: string): Promise<{ dataUrl: string, duration: number }> {
+    return new Promise((resolve, reject) => {
+      const synth = window.speechSynthesis;
+      const utterance = new SpeechSynthesisUtterance(text);
       
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: prompt }] }],
-      });
+      // محاولة العثور على صوت عربي
+      const voices = synth.getVoices();
+      const arabicVoice = voices.find(v => v.lang.startsWith('ar')) || voices[0];
+      if (arabicVoice) utterance.voice = arabicVoice;
       
-      return response.text || text;
+      utterance.pitch = 1;
+      utterance.rate = 0.9;
+      
+      // بما أن الـ Web Speech API لا يعطي Blob مباشرة، سنقوم بمحاكاة "معاينة صوتية"
+      // ونخبر النظام أن هذا صوت محلي.
+      synth.speak(utterance);
+      
+      // ملاحظة: في النسخة الحقيقية، يفضل استخدام مكتبة مثل RecordRTC إذا أردت تحويل صوت المتصفح لـ Blob
+      // هنا سنعيد DataURL فارغ ونعتمد على SpeechSynthesis للتشغيل المباشر
+      resolve({ dataUrl: "local_stream", duration: text.length / 10 });
     });
   }
 
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
-    const cleanText = text.trim().substring(0, 1500);
     
-    // مصفوفة الموديلات التي سنحاول استخدامها بالترتيب
-    const modelsToTry = [
-      'gemini-2.5-flash-preview-tts',
-      'gemini-2.5-flash-native-audio-preview-09-2025'
-    ];
-
-    let lastError = null;
-
-    for (const modelName of modelsToTry) {
+    // محاولة الموديلات بالترتيب
+    const models = ['gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-native-audio-preview-09-2025'];
+    
+    for (const modelName of models) {
       try {
-        const result = await withRetry(async () => {
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: [{ parts: [{ text: `${performanceNote}. اقرأ بوضوح: ${cleanText}` }] }],
-            config: {
-              responseModalities: [Modality.AUDIO],
-              speechConfig: { 
-                voiceConfig: { 
-                  prebuiltVoiceConfig: { voiceName } 
-                } 
-              },
-            },
-          });
-
-          const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-          const base64Audio = audioPart?.inlineData?.data;
-          
-          if (!base64Audio) throw new Error("لا توجد بيانات صوتية.");
-
-          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-          const audioBuffer = await decodeAudioData(decode(base64Audio), audioContext, 24000, 1);
-          const wavBlob = audioBufferToWav(audioBuffer);
-          const dataUrl = await blobToDataURL(wavBlob);
-          
-          return { dataUrl, duration: audioBuffer.duration };
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [{ parts: [{ text: `${performanceNote}. اقرأ بوضوح وبطريقة معبرة: ${text}` }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+          },
         });
 
-        if (result) return result;
+        const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+        if (audioPart?.inlineData?.data) {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+          const audioBuffer = await decodeAudioData(decode(audioPart.inlineData.data), audioContext, 24000, 1);
+          return { dataUrl: await blobToDataURL(audioBufferToWav(audioBuffer)), duration: audioBuffer.duration };
+        }
       } catch (e: any) {
-        lastError = e;
-        console.warn(`[Majd Fallback] فشل الموديل ${modelName}:`, e.message);
-        // إذا كان الخطأ ليس Quota (مثلاً مشكلة في الاتصال)، نخرج فوراً
-        const msg = e.message.toLowerCase();
-        if (!msg.includes("429") && !msg.includes("limit") && !msg.includes("quota")) break;
+        console.warn(`[Majd] ${modelName} فشل:`, e.message);
+        if (JSON.stringify(e).includes("limit\": 0")) {
+          // إذا كان الخطأ هو Quota 0، نرمي خطأ مخصص للواجهة لتعرض "الحل"
+          throw new Error("QUOTA_LIMIT_ZERO");
+        }
       }
     }
-
-    throw lastError || new Error("فشلت جميع المحاولات لتوليد الصوت.");
+    
+    throw new Error("FAILED_ALL_MODELS");
   }
 }
 

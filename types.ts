@@ -59,6 +59,7 @@ export interface GlobalStats {
   total_visits: number;
   total_duration: number;
   avg_rating: number;
+  live_now: number; // الزوار الحاليون
   top_countries: { name: string, count: number, code: string }[];
   top_browsers: { name: string, count: number }[];
   top_os: { name: string, count: number }[];

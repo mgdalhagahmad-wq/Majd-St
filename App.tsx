@@ -24,13 +24,14 @@ const RatingStars: React.FC<{ rating: number, onRate?: (r: number) => void, inte
   </div>
 );
 
-const StatCard: React.FC<{ label: string, value: string | number, icon?: string }> = ({ label, value, icon }) => (
-  <div className="admin-card p-6 rounded-[32px] space-y-2 relative overflow-hidden group border border-white/5">
+const StatCard: React.FC<{ label: string, value: string | number, icon?: string, highlight?: boolean }> = ({ label, value, icon, highlight }) => (
+  <div className={`admin-card p-6 rounded-[32px] space-y-2 relative overflow-hidden group border ${highlight ? 'border-amber-500/30' : 'border-white/5'}`}>
     <div className="flex justify-between items-start relative z-10">
       <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">{label}</span>
-      <span className="text-amber-400 opacity-50">{icon}</span>
+      <span className={`${highlight ? 'text-amber-400' : 'text-amber-400/50'}`}>{icon}</span>
     </div>
-    <div className="text-4xl font-black text-white relative z-10">{value}</div>
+    <div className={`text-4xl font-black ${highlight ? 'text-amber-400' : 'text-white'} relative z-10`}>{value}</div>
+    {highlight && <div className="absolute top-2 right-2 flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span></div>}
     <div className="absolute -right-2 -bottom-2 text-white/5 text-7xl font-black">{icon}</div>
   </div>
 );
@@ -122,6 +123,7 @@ const App: React.FC = () => {
 
   const [cooldown, setCooldown] = useState(false);
   const [diagResult, setDiagResult] = useState<string>("");
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
 
   const availableProfiles = useMemo(() => {
     const dialect = DIALECTS.find(d => d.id === selectedDialectId);
@@ -163,7 +165,18 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isGenerating, isPreprocessing]);
 
-  const toggleAudio = (id: string, url: string) => {
+  const toggleAudio = (id: string, url: string, text?: string) => {
+    if (url === "local_stream" && text) {
+        const synth = window.speechSynthesis;
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = synth.getVoices();
+        utterance.voice = voices.find(v => v.lang.startsWith('ar')) || voices[0];
+        synth.speak(utterance);
+        setPlayingId(id);
+        utterance.onend = () => setPlayingId(null);
+        return;
+    }
+
     if (playingId === id) { audioRef.current?.pause(); setPlayingId(null); }
     else {
       if (audioRef.current) audioRef.current.pause();
@@ -175,7 +188,7 @@ const App: React.FC = () => {
   };
 
   const testEngine = async () => {
-    setDiagResult("جاري فحص المحركات... يرجى الانتظار 10 ثوانٍ.");
+    setDiagResult("جاري فحص المحركات... يرجى الانتظار 5 ثوانٍ.");
     const res = await savioService.testConnection();
     setDiagResult(res.message);
   };
@@ -194,16 +207,15 @@ const App: React.FC = () => {
       setRefinedText(result);
     } catch (e: any) { 
         console.error(e);
-        const msg = e.message || "";
-        alert(`🚨 خطأ في معالجة النص: ${msg}\n\nنصيحة: إذا كنت تستخدم باقة مدفوعة، تأكد من تفعيل Gemini API لمشروعك السحابي.`);
+        alert("خطأ في الاتصال بالذكاء الاصطناعي لتطوير النص.");
     }
     finally { 
         setIsPreprocessing(false); 
-        setTimeout(() => setCooldown(false), 3000);
+        setTimeout(() => setCooldown(false), 2000);
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (forceLocal = false) => {
     const textToUse = refinedText || inputText;
     if (!textToUse.trim() || !selectedProfile || cooldown) return;
     
@@ -211,42 +223,65 @@ const App: React.FC = () => {
     setCooldown(true);
 
     try {
-      const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
-      const { dataUrl, duration } = await savioService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}، بأسلوب ${selectedProfile.category}`);
-      
-      let record: GenerationRecord;
-      try {
-        record = await api.saveRecord({
-          text: textToUse, user_id: userId,
-          selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
-          audio_data: dataUrl, duration
-        });
-      } catch (storageErr) {
-        record = {
-          id: 'local_' + Date.now(),
-          user_id: userId,
-          text: textToUse,
-          selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
-          timestamp: Date.now(),
-          audio_url: dataUrl,
-          audio_data: dataUrl,
-          duration: duration,
-          status: 'success',
-          engine: 'Majd Local Engine',
-          rating: 0
+      if (forceLocal) {
+        const { dataUrl, duration } = await savioService.generateLocalVoiceOver(textToUse);
+        const record: GenerationRecord = {
+            id: 'local_' + Date.now(),
+            user_id: userId,
+            text: textToUse,
+            selection: { dialect: 'صوت محلي', type: 'متصفح', field: 'تجريبي', controls: voiceControls },
+            timestamp: Date.now(),
+            audio_url: dataUrl,
+            audio_data: dataUrl,
+            duration,
+            status: 'success',
+            engine: 'Local Browser Engine',
+            rating: 0
         };
+        setCurrentResult(record);
+        setHistory(prev => [record, ...prev]);
+        setShowQuotaModal(false);
+      } else {
+        const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
+        const { dataUrl, duration } = await savioService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}، بأسلوب ${selectedProfile.category}`);
+        
+        let record: GenerationRecord;
+        try {
+          record = await api.saveRecord({
+            text: textToUse, user_id: userId,
+            selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
+            audio_data: dataUrl, duration
+          });
+        } catch (storageErr) {
+          record = {
+            id: 'local_temp_' + Date.now(),
+            user_id: userId,
+            text: textToUse,
+            selection: { dialect: DIALECTS.find(d => d.id === selectedDialectId)?.title || '', type: selectedAge, field: selectedProfile.category, controls: voiceControls },
+            timestamp: Date.now(),
+            audio_url: dataUrl,
+            audio_data: dataUrl,
+            duration: duration,
+            status: 'success',
+            engine: 'Majd Local Engine',
+            rating: 0
+          };
+        }
+        
+        setCurrentResult(record);
+        setHistory(prev => [record, ...prev]);
       }
-      
-      setCurrentResult(record);
-      setHistory(prev => [record, ...prev]);
     } catch (e: any) { 
       console.error("Generation error:", e);
-      const msg = e.message || "";
-      alert(`🛑 فشل توليد الصوت: ${msg}\n\nهذا الخطأ 429 يعني أن جوجل لم تسمح لهذا النموذج بالعمل بعد. يرجى الانتظار دقيقة والتحميل مجدداً.`);
+      if (e.message === "QUOTA_LIMIT_ZERO") {
+        setShowQuotaModal(true);
+      } else {
+        alert("🛑 حدث خطأ أثناء توليد الصوت. يرجى المحاولة لاحقاً.");
+      }
     }
     finally { 
         setIsGenerating(false); 
-        setTimeout(() => setCooldown(false), 5000);
+        setTimeout(() => setCooldown(false), 3000);
     }
   };
 
@@ -311,7 +346,8 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <StatCard label="متواجد الآن" value={stats.live_now} icon="📡" highlight />
         <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
         <StatCard label="المستخدمين" value={stats.total_users} icon="👥" />
         <StatCard label="المقاطع" value={stats.total_records} icon="⚡" />
@@ -319,7 +355,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-        <DetailedStatList title="أعلى الدول زيارة" items={stats.top_countries} total={stats.total_visits} color="bg-amber-500" />
+        <DetailedStatList title="أعلى الدول" items={stats.top_countries} total={stats.total_visits} color="bg-amber-500" />
         <DetailedStatList title="أعلى المدن" items={stats.top_cities} total={stats.total_visits} color="bg-orange-500" />
         <DetailedStatList title="أنظمة التشغيل" items={stats.top_os} total={stats.total_visits} color="bg-emerald-500" />
         <DetailedStatList title="المتصفحات" items={stats.top_browsers} total={stats.total_visits} color="bg-cyan-500" />
@@ -340,14 +376,16 @@ const App: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                   <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white transition-all">
+                   <button onClick={() => toggleAudio(r.id, r.audio_data, r.text)} className="p-3 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white transition-all">
                      {playingId === r.id ? '⏸' : '▶'}
                    </button>
-                   <a href={r.audio_data} download={`vo_${r.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
-                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
-                     </svg>
-                   </a>
+                   {r.audio_data !== "local_stream" && (
+                    <a href={r.audio_data} download={`vo_${r.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    </a>
+                   )}
                 </div>
               </div>
             )) : <div className="text-center py-20 opacity-20 italic">لا توجد بيانات مسجلة حالياً</div>}
@@ -378,8 +416,29 @@ const App: React.FC = () => {
           <h2 className="tech-logo text-7xl animate-pulse mb-12">MAJD</h2>
           <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 max-w-lg w-full transform transition-all animate-bounce">
              <p className="text-2xl font-bold text-white leading-relaxed">{WAITING_MESSAGES[currentWaitMsgIndex]}</p>
-             {isGenerating && <p className="text-sm text-amber-500/60 mt-4 italic">إذا استمر هذا الوضع، فالمحرك بانتظار إذن حصة الاستخدام من جوجل...</p>}
           </div>
+        </div>
+      )}
+
+      {showQuotaModal && (
+        <div className="fixed inset-0 z-[1100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
+            <div className="glass-3d max-w-2xl w-full p-12 rounded-[50px] border-amber-500/40 space-y-8 text-center shadow-[0_0_100px_rgba(245,158,11,0.1)]">
+                <div className="w-24 h-24 bg-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-500/30">
+                    <span className="text-5xl">🛑</span>
+                </div>
+                <h3 className="text-3xl font-black text-white">عذراً، حصة المحرك (Limit 0)</h3>
+                <p className="text-white/60 leading-relaxed text-lg">
+                    يبدو أن حسابك في Google Cloud لم يتم تفعيل حصة موديلات الصوت (TTS) له بعد، أو أنك تستخدم الباقة المجانية المقيدة. 
+                </p>
+                <div className="space-y-4">
+                    <a href="https://console.cloud.google.com/iam-admin/quotas" target="_blank" className="block w-full py-5 rounded-2xl border border-amber-500/50 bg-amber-500/10 text-amber-400 font-bold hover:bg-amber-500 hover:text-white transition-all">تفعيل الحصة من Google Cloud Console</a>
+                    <button onClick={() => handleGenerate(true)} className="block w-full py-5 rounded-2xl brand-bg text-white font-black shadow-lg">استخدام المحرك المحلي (بديل تجريبي)</button>
+                    <button onClick={() => setShowQuotaModal(false)} className="text-white/20 text-xs mt-4">إغلاق وتجربة لاحقاً</button>
+                </div>
+                <div className="text-[10px] text-white/20 border-t border-white/5 pt-6 italic">
+                    ملاحظة: المحرك المحلي يستخدم صوت المتصفح، لذا الجودة ستكون أقل ولا يدعم التحميل.
+                </div>
+            </div>
         </div>
       )}
       
@@ -446,22 +505,24 @@ const App: React.FC = () => {
               <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
-          <button onClick={handleGenerate} disabled={isGenerating || cooldown} className={`w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>{cooldown && !isGenerating ? "تبريد المحرك..." : "توليد ورفع الصوت"}</button>
+          <button onClick={() => handleGenerate(false)} disabled={isGenerating || cooldown} className={`w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>{cooldown && !isGenerating ? "تبريد المحرك..." : "توليد ورفع الصوت"}</button>
         </section>
 
         {currentResult && (
           <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center gap-8">
-              <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-24 w-24 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-red-600' : ''}`}>
+              <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data, currentResult.text)} className={`h-24 w-24 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-red-600' : ''}`}>
                 <span className="text-3xl">{playingId === currentResult.id ? "⏸" : "▶"}</span>
               </button>
               <div className="text-right">
-                <h4 className="text-2xl font-black">جاهز يا بطل! 🎙️</h4>
-                <div className="mt-4 text-xs opacity-40">الصوت: {selectedProfile?.name} | اللهجة: {DIALECTS.find(d => d.id === selectedDialectId)?.title}</div>
+                <h4 className="text-2xl font-black">{currentResult.engine.includes('Local') ? "معاينة محلية جاهزة" : "جاهز يا بطل! 🎙️"}</h4>
+                <div className="mt-4 text-xs opacity-40">الصوت: {selectedProfile?.name} | المصدر: {currentResult.engine}</div>
                 <div className="mt-4"><RatingStars rating={currentResult.rating} interactive onRate={(r) => { api.updateRating(currentResult.id, r); setCurrentResult({...currentResult, rating: r}); }} /></div>
               </div>
             </div>
-            <a href={currentResult.audio_data} download={`majd_vo_${currentResult.id}.wav`} className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
+            {currentResult.audio_data !== "local_stream" && (
+                <a href={currentResult.audio_data} download={`majd_vo_${currentResult.id}.wav`} className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
+            )}
           </div>
         )}
 
@@ -488,17 +549,19 @@ const App: React.FC = () => {
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
             {history.length > 0 ? history.map((rec) => (
               <div key={rec.id} className="p-6 rounded-3xl bg-white/5 flex items-center justify-between hover:bg-white/10 transition-all border border-transparent hover:border-white/5">
-                <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
+                <button onClick={() => toggleAudio(rec.id, rec.audio_data, rec.text)} className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
                 <div className="text-right flex-1 truncate mx-4">
                   <p className="text-sm truncate text-white/80">"{rec.text}"</p>
                   <span className="text-[10px] opacity-20">{new Date(rec.timestamp).toLocaleDateString('ar-EG')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                   <a href={rec.audio_data} download={`majd_vo_${rec.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
-                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
-                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
-                     </svg>
-                   </a>
+                   {rec.audio_data !== "local_stream" && (
+                    <a href={rec.audio_data} download={`majd_vo_${rec.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
+                        <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    </a>
+                   )}
                 </div>
               </div>
             )) : <div className="text-center py-10 opacity-20">ابدأ بتوليد أول صوت لتظهر هنا</div>}

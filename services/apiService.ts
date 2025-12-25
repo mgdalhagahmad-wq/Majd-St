@@ -12,6 +12,8 @@ class MajdEngine {
     'Prefer': 'return=representation'
   };
 
+  private currentSessionId: string | null = null;
+
   private base64ToBlob(base64: string, mime: string): Blob {
     const parts = base64.split(',');
     const actualData = parts.length > 1 ? parts[1] : parts[0];
@@ -37,32 +39,61 @@ class MajdEngine {
     return { browser, os, device: /Mobile|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop" };
   }
 
+  // جلب معلومات الجغرافيا الحقيقية
+  private async fetchGeoInfo() {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      return await res.json();
+    } catch (e) {
+      return { country_name: "Unknown", country_code: "WW", city: "Unknown", region: "Unknown", ip: "0.0.0.0" };
+    }
+  }
+
   async logSession(userId: string): Promise<SessionLog | null> {
     try {
+      const geo = await this.fetchGeoInfo();
       const device = this.getDeviceInfo();
+      const sessionId = `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+      this.currentSessionId = sessionId;
+
       const session: SessionLog = {
-        id: `sess_${Date.now()}`,
+        id: sessionId,
         user_id: userId,
         start_time: Date.now(),
         last_active: Date.now(),
-        country: "Egypt", 
-        country_code: "EG",
-        city: "Cairo",
-        region: "MENA",
-        ip: "0.0.0.0",
+        country: geo.country_name || "Unknown", 
+        country_code: geo.country_code || "WW",
+        city: geo.city || "Unknown",
+        region: geo.region || "Unknown",
+        ip: geo.ip || "0.0.0.0",
         browser: device.browser,
         os: device.os,
         device: device.device,
         referrer: document.referrer || "Direct"
       };
 
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/sessions`, {
+      await fetch(`${SUPABASE_URL}/rest/v1/sessions`, {
         method: 'POST',
         headers: this.headers,
         body: JSON.stringify(session)
       });
-      return res.ok ? session : null;
+      
+      this.startHeartbeat();
+      return session;
     } catch (e) { return null; }
+  }
+
+  private startHeartbeat() {
+    setInterval(async () => {
+      if (!this.currentSessionId) return;
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/sessions?id=eq.${this.currentSessionId}`, {
+          method: 'PATCH',
+          headers: this.headers,
+          body: JSON.stringify({ last_active: Date.now() })
+        });
+      } catch (e) {}
+    }, 30000); // تحديث النشاط كل 30 ثانية
   }
 
   async saveRecord(record: any): Promise<GenerationRecord> {
@@ -160,34 +191,49 @@ class MajdEngine {
       return acc;
     }, {});
     return Object.entries(counts)
-      .map(([name, count]) => ({ name, count: count as number, code: name === 'Egypt' ? 'EG' : 'WW' }))
+      .map(([name, count]) => ({ name, count: count as number, code: 'WW' })) // الكود سيحدث لاحقا من البيانات الحقيقية
       .sort((a, b) => b.count - a.count);
   }
 
   async getGlobalStats(): Promise<GlobalStats> {
     try {
+      // استخدام count=exact لجلب الإجمالي الحقيقي من قاعدة البيانات مباشرة لتجاوز حد الـ 1000
+      const commonHeaders = { ...this.headers, 'Prefer': 'count=exact,head=false' };
+      
       const [recRes, sessRes] = await Promise.all([
-        fetch(`${SUPABASE_URL}/rest/v1/records?select=id,duration,rating`, { headers: this.headers }),
-        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=user_id,country,browser,os,city`, { headers: this.headers })
+        fetch(`${SUPABASE_URL}/rest/v1/records?select=id,duration,rating`, { headers: commonHeaders }),
+        fetch(`${SUPABASE_URL}/rest/v1/sessions?select=user_id,country,browser,os,city,last_active`, { headers: commonHeaders })
       ]);
+
+      // استخراج الإجمالي من الهيدرز (Supabase يرسل العدد الإجمالي في Content-Range)
+      const totalRecs = parseInt(recRes.headers.get('content-range')?.split('/')[1] || '0');
+      const totalSess = parseInt(sessRes.headers.get('content-range')?.split('/')[1] || '0');
+
       const records = await recRes.json();
       const sessions = await sessRes.json();
+
       if (!Array.isArray(sessions) || !Array.isArray(records)) throw new Error();
+      
+      const now = Date.now();
+      const fiveMinsAgo = now - (5 * 60 * 1000);
+      const liveNow = sessions.filter((s: any) => s.last_active > fiveMinsAgo).length;
+
       const rated = records.filter((r: any) => r.rating > 0);
       
       return {
         total_users: new Set(sessions.map((s: any) => s.user_id)).size,
-        total_records: records.length,
-        total_visits: sessions.length,
+        total_records: totalRecs,
+        total_visits: totalSess,
         total_duration: records.reduce((a: any, b: any) => a + (b.duration || 0), 0),
         avg_rating: rated.length > 0 ? Number((rated.reduce((a: any, b: any) => a + b.rating, 0) / rated.length).toFixed(1)) : 5.0,
+        live_now: liveNow,
         top_countries: this.aggregate(sessions, 'country'),
         top_browsers: this.aggregate(sessions, 'browser'),
         top_os: this.aggregate(sessions, 'os'),
         top_cities: this.aggregate(sessions, 'city')
       };
     } catch (e) {
-      return { total_users: 0, total_records: 0, total_visits: 0, total_duration: 0, avg_rating: 5, top_countries: [], top_browsers: [], top_os: [], top_cities: [] };
+      return { total_users: 0, total_records: 0, total_visits: 0, total_duration: 0, avg_rating: 5, live_now: 0, top_countries: [], top_browsers: [], top_os: [], top_cities: [] };
     }
   }
 
