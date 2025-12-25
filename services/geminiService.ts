@@ -1,29 +1,26 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// دالة مساعدة لمحاولة إعادة الطلب في حال وجود خطأ 429
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
-  let delay = 3000; // البداية بانتظار 3 ثوانٍ (زدناها قليلاً لفييرسل)
+  let delay = 3000; 
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       const errorMsg = error?.message || "";
-      const status = error?.status;
+      const status = error?.status || (errorMsg.includes("429") ? 429 : 500);
       
-      // التحقق من الخطأ 429 سواء من الحالة أو من نص الرسالة
-      const isRateLimit = status === 429 || errorMsg.includes("429") || errorMsg.toLowerCase().includes("too many requests");
-
-      if (isRateLimit && i < maxRetries - 1) {
-        console.warn(`[Majd Studio] خطأ في حدود الطلبات. محاولة ${i + 1} من ${maxRetries} بعد ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // مضاعفة وقت الانتظار في كل مرة
+      if (status === 429 && i < maxRetries - 1) {
+        const jitter = Math.random() * 2000;
+        console.warn(`[Majd AI] محاولة إعادة الاتصال ${i + 1}... السيرفر مشغول حالياً.`);
+        await new Promise(resolve => setTimeout(resolve, delay + jitter));
+        delay *= 2;
         continue;
       }
       throw error;
     }
   }
-  throw new Error("تجاوز المحرك عدد المحاولات المسموح بها بسبب ضغط الطلبات.");
+  throw new Error("تجاوز المحرك حدود الاستخدام المسموحة. يرجى مراجعة إعدادات Quota في Google Cloud.");
 }
 
 function decode(base64: string) {
@@ -102,11 +99,31 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 };
 
 export class MajdStudioService {
+  private getApiKey(): string {
+    const key = process.env.API_KEY;
+    if (!key || key === "undefined" || key.length < 5) {
+      throw new Error("API Key غير موجود أو غير صحيح في إعدادات Vercel. يرجى عمل Redeploy.");
+    }
+    return key;
+  }
+
+  // دالة لاختبار المفتاح فوراً (تستخدم في لوحة التحكم)
+  async testConnection(): Promise<{ success: boolean, message: string }> {
+    try {
+      const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: "hi",
+      });
+      return { success: true, message: `يعمل بنجاح. الرد: ${response.text}` };
+    } catch (e: any) {
+      return { success: false, message: e.message || "فشل غير معروف" };
+    }
+  }
+
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
     return withRetry(async () => {
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key is missing from Environment Variables");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
       const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. اجعل النص احترافياً وجذاباً. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
       
       const response = await ai.models.generateContent({
@@ -120,9 +137,7 @@ export class MajdStudioService {
 
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     return withRetry(async () => {
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key is missing from Environment Variables");
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: this.getApiKey() });
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -140,7 +155,7 @@ export class MajdStudioService {
       const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = audioPart?.inlineData?.data;
       
-      if (!base64Audio) throw new Error("لم يتم العثور على بيانات صوتية.");
+      if (!base64Audio) throw new Error("لم يتم استلام بيانات صوتية.");
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedBytes = decode(base64Audio);

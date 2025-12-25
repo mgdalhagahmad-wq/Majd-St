@@ -120,8 +120,8 @@ const App: React.FC = () => {
   const [currentWaitMsgIndex, setCurrentWaitMsgIndex] = useState(0);
   const [currentResult, setCurrentResult] = useState<GenerationRecord | null>(null);
 
-  // لمنع الضغط المتكرر
   const [cooldown, setCooldown] = useState(false);
+  const [diagResult, setDiagResult] = useState<string>("");
 
   const availableProfiles = useMemo(() => {
     const dialect = DIALECTS.find(d => d.id === selectedDialectId);
@@ -158,7 +158,7 @@ const App: React.FC = () => {
       setCurrentWaitMsgIndex(0);
       interval = setInterval(() => {
         setCurrentWaitMsgIndex(prev => (prev + 1) % WAITING_MESSAGES.length);
-      }, 2500);
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [isGenerating, isPreprocessing]);
@@ -172,6 +172,12 @@ const App: React.FC = () => {
       setPlayingId(id);
       audioRef.current.onended = () => setPlayingId(null);
     }
+  };
+
+  const testEngine = async () => {
+    setDiagResult("جاري الفحص...");
+    const res = await savioService.testConnection();
+    setDiagResult(res.message);
   };
 
   const handleRefineText = async () => {
@@ -188,15 +194,16 @@ const App: React.FC = () => {
       setRefinedText(result);
     } catch (e: any) { 
         console.error(e);
-        if (e.status === 429) {
-            alert("⚠️ عذراً، هناك ضغط كبير على المحرك حالياً. يرجى الانتظار 30 ثانية قبل المحاولة مجدداً.");
+        const msg = e.message || "";
+        if (msg.includes("429")) {
+            alert("🛑 خطأ 429: مفتاحك المدفوع يواجه قيوداً في Google Cloud. \n\nتأكد من:\n1. أن الـ Quota للنماذج التجريبية ليست 0.\n2. أن المفتاح مربوط فعلياً بمشروع الفوترة.");
         } else {
-            alert("حدث خطأ أثناء تحسين النص. حاول لاحقاً.");
+            alert("حدث خطأ: " + msg);
         }
     }
     finally { 
         setIsPreprocessing(false); 
-        setTimeout(() => setCooldown(false), 3000); // تبريد لـ 3 ثواني
+        setTimeout(() => setCooldown(false), 3000);
     }
   };
 
@@ -219,7 +226,6 @@ const App: React.FC = () => {
           audio_data: dataUrl, duration
         });
       } catch (storageErr) {
-        console.warn("Storage Error, showing local copy", storageErr);
         record = {
           id: 'local_' + Date.now(),
           user_id: userId,
@@ -239,15 +245,16 @@ const App: React.FC = () => {
       setHistory(prev => [record, ...prev]);
     } catch (e: any) { 
       console.error("Generation error:", e);
-      if (e.message?.includes("429") || e.status === 429) {
-          alert("🚨 المحرك مشغول جداً حالياً (خطأ 429). \nهذا يحدث بسبب سياسة الاستخدام المجاني لـ Gemini. \nيرجى المحاولة بعد دقيقة واحدة.");
+      const msg = e.message || "";
+      if (msg.includes("429")) {
+          alert("🛑 خطأ 429: المحرك غير قادر على سحب حصة من جوجل حالياً. يرجى مراجعة إعدادات Quota في Google Cloud Console.");
       } else {
-          alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي: " + (e.message || "يرجى المحاولة مرة أخرى."));
+          alert("عذراً، حدث خطأ: " + msg);
       }
     }
     finally { 
         setIsGenerating(false); 
-        setTimeout(() => setCooldown(false), 5000); // تبريد لـ 5 ثواني
+        setTimeout(() => setCooldown(false), 5000);
     }
   };
 
@@ -300,8 +307,17 @@ const App: React.FC = () => {
           <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
           <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Advanced Analytics Dashboard Pro</p>
         </div>
-        <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
+        <div className="flex gap-4">
+          <button onClick={testEngine} className="px-6 py-4 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold hover:bg-emerald-500 hover:text-white transition-all">اختيار المحرك AI</button>
+          <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
+        </div>
       </header>
+
+      {diagResult && (
+        <div className="mb-8 p-6 rounded-3xl glass-3d border-emerald-500/30 text-emerald-400 font-bold text-center">
+            نتيجة الفحص: {diagResult}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard label="الزيارات" value={stats.total_visits} icon="👁️" />
@@ -370,7 +386,7 @@ const App: React.FC = () => {
           <h2 className="tech-logo text-7xl animate-pulse mb-12">MAJD</h2>
           <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 max-w-lg w-full transform transition-all animate-bounce">
              <p className="text-2xl font-bold text-white leading-relaxed">{WAITING_MESSAGES[currentWaitMsgIndex]}</p>
-             {isGenerating && <p className="text-sm text-amber-500/60 mt-4 italic">إذا استغرق الأمر وقتاً أطول، فالمحرك يحاول تجاوز ضغط الطلبات...</p>}
+             {isGenerating && <p className="text-sm text-amber-500/60 mt-4 italic">إذا استمر هذا الوضع، فالمحرك بانتظار إذن حصة الاستخدام من جوجل...</p>}
           </div>
         </div>
       )}
@@ -438,7 +454,7 @@ const App: React.FC = () => {
               <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
-          <button onClick={handleGenerate} disabled={isGenerating || cooldown} className={`w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>{cooldown && !isGenerating ? "انتظار (تبريد المحرك)..." : "توليد ورفع الصوت"}</button>
+          <button onClick={handleGenerate} disabled={isGenerating || cooldown} className={`w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8 ${cooldown ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>{cooldown && !isGenerating ? "تبريد المحرك..." : "توليد ورفع الصوت"}</button>
         </section>
 
         {currentResult && (
