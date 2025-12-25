@@ -2,23 +2,28 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
 // دالة مساعدة لمحاولة إعادة الطلب في حال وجود خطأ 429
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
-  let delay = 2000; // البداية بانتظار ثانيتين
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> {
+  let delay = 3000; // البداية بانتظار 3 ثوانٍ (زدناها قليلاً لفييرسل)
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
-      // إذا كان الخطأ هو كثرة الطلبات (429) ولم نتجاوز الحد الأقصى للمحاولات
-      if (error.status === 429 && i < maxRetries - 1) {
-        console.warn(`خطأ 429: تم الوصول للحد الأقصى، محاولة الإعادة رقم ${i + 1} بعد ${delay}ms...`);
+      const errorMsg = error?.message || "";
+      const status = error?.status;
+      
+      // التحقق من الخطأ 429 سواء من الحالة أو من نص الرسالة
+      const isRateLimit = status === 429 || errorMsg.includes("429") || errorMsg.toLowerCase().includes("too many requests");
+
+      if (isRateLimit && i < maxRetries - 1) {
+        console.warn(`[Majd Studio] خطأ في حدود الطلبات. محاولة ${i + 1} من ${maxRetries} بعد ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // زيادة وقت الانتظار بشكل أسي (Exponential Backoff)
+        delay *= 2; // مضاعفة وقت الانتظار في كل مرة
         continue;
       }
       throw error;
     }
   }
-  throw new Error("Maximum retries reached");
+  throw new Error("تجاوز المحرك عدد المحاولات المسموح بها بسبب ضغط الطلبات.");
 }
 
 function decode(base64: string) {
@@ -100,7 +105,7 @@ export class MajdStudioService {
   async preprocessText(text: string, options: { dialect: string, field: string, personality: string }): Promise<string> {
     return withRetry(async () => {
       const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key is missing");
+      if (!apiKey) throw new Error("API Key is missing from Environment Variables");
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. اجعل النص احترافياً وجذاباً. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
       
@@ -116,7 +121,7 @@ export class MajdStudioService {
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     return withRetry(async () => {
       const apiKey = process.env.API_KEY;
-      if (!apiKey) throw new Error("API Key is missing");
+      if (!apiKey) throw new Error("API Key is missing from Environment Variables");
       const ai = new GoogleGenAI({ apiKey });
 
       const response = await ai.models.generateContent({
@@ -135,7 +140,7 @@ export class MajdStudioService {
       const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = audioPart?.inlineData?.data;
       
-      if (!base64Audio) throw new Error("لم يتم العثور على بيانات صوتية في استجابة الذكاء الاصطناعي.");
+      if (!base64Audio) throw new Error("لم يتم العثور على بيانات صوتية.");
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedBytes = decode(base64Audio);
