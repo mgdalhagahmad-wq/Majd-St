@@ -45,7 +45,7 @@ class MajdEngine {
         user_id: userId,
         start_time: Date.now(),
         last_active: Date.now(),
-        country: "Egypt", // Default or mock
+        country: "Egypt", 
         country_code: "EG",
         city: "Cairo",
         region: "MENA",

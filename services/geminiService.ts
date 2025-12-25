@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
 function decode(base64: string) {
   const binaryString = atob(base64);
@@ -17,17 +17,18 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2);
+  const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  const dataInt16 = new Int16Array(buffer);
   const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+  const audioBuffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
   for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
+    const channelData = audioBuffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }
-  return buffer;
+  return audioBuffer;
 }
 
 function audioBufferToWav(buffer: AudioBuffer): Blob {
@@ -81,7 +82,7 @@ export class MajdStudioService {
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("API Key is missing");
       const ai = new GoogleGenAI({ apiKey });
-      const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
+      const prompt = `أعد صياغة النص التالي بأسلوب ${options.personality} ولهجة ${options.dialect} لمجال ${options.field}. اجعل النص احترافياً وجذاباً. أخرج النص الجديد فقط وبدون أي مقدمات: "${text}"`;
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -90,6 +91,7 @@ export class MajdStudioService {
       
       return response.text || text;
     } catch (error) {
+      console.error("Preprocessing error:", error);
       return text;
     }
   }
@@ -97,21 +99,26 @@ export class MajdStudioService {
   async generateVoiceOver(text: string, voiceName: string, performanceNote: string): Promise<{ dataUrl: string, duration: number }> {
     try {
       const apiKey = process.env.API_KEY;
-      const ai = new GoogleGenAI({ apiKey: apiKey as string });
+      if (!apiKey) throw new Error("API Key is missing");
+      const ai = new GoogleGenAI({ apiKey });
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `${performanceNote}. النص: "${text}"` }] }],
+        contents: [{ parts: [{ text: `${performanceNote}. النص المراد قراءته هو: "${text}"` }] }],
         config: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName } } },
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { 
+            voiceConfig: { 
+              prebuiltVoiceConfig: { voiceName } 
+            } 
+          },
         },
       });
 
       const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       const base64Audio = audioPart?.inlineData?.data;
       
-      if (!base64Audio) throw new Error("Audio data not found");
+      if (!base64Audio) throw new Error("لم يتم العثور على بيانات صوتية في استجابة الذكاء الاصطناعي.");
 
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       const decodedBytes = decode(base64Audio);
@@ -122,9 +129,10 @@ export class MajdStudioService {
       
       return { dataUrl, duration: audioBuffer.duration };
     } catch (error: any) {
+      console.error("TTS Generation Error:", error);
       throw error;
     }
   }
 }
 
-export const majdService = new MajdStudioService();
+export const savioService = new MajdStudioService();

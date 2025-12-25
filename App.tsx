@@ -2,24 +2,24 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { DIALECTS, VOICE_TYPES, STUDIO_CONTROLS, getBaseVoiceForType, VoiceProfile, StudioIcons } from './constants';
 import { GenerationRecord, VoiceControls, GlobalStats } from './types';
-import { majdService } from './services/geminiService';
+import { savioService } from './services/geminiService';
 import { api } from './services/apiService';
 
 const WAITING_MESSAGES = [
-  "ثانية واحدة.. Majd بيظبط الأوتوتيون.. 🎤",
-  "مهندس الصوت شكلو نايم ولا إيه؟ هصحيهولك حالاً! 😴",
-  "يالا معلش اتأخرنا عليك.. بننقي أحسن طبقة صوت.. ✨",
-  "بنمسح التراب من على الميكروفونات.. 🧹",
-  "الذكاء الاصطناعي بيشرب قهوته وجاي في الطريق.. ☕",
-  "مجد بيراجع النص كلمة كلمة عشان ميبقاش فيه غلطة.. 📝",
-  "خلاص هانت، الصوت بيتحمل على السحابة.. ☁️",
-  "بنعمل ميكس وماسترينج عشان النتيجة تبهرك.. 🎧"
+  "ثوانٍ قليلة.. MAJD يضبط الأبعاد الصوتية.. 🎙️",
+  "نقوم بتحسين جودة الترددات الآن.. ✨",
+  "MAJD يختار النبرة المثالية لنصك.. 🎤",
+  "جاري تنظيف المسارات الصوتية من الضجيج.. 🧹",
+  "الذكاء الاصطناعي في مرحلة الميكساج النهائي.. 🎧",
+  "MAJD يراجع مخارج الحروف بدقة متناهية.. 📝",
+  "شارفنا على الانتهاء، الصوت قيد الرفع.. ☁️",
+  "نعد لك نتيجة ستذهلك، ابقَ معنا.. ✨"
 ];
 
 const RatingStars: React.FC<{ rating: number, onRate?: (r: number) => void, interactive?: boolean }> = ({ rating, onRate, interactive }) => (
   <div className="flex gap-1">
     {[1, 2, 3, 4, 5].map(star => (
-      <button key={star} disabled={!interactive} onClick={() => onRate?.(star)} className={`text-xl transition-all ${star <= rating ? 'text-yellow-400 scale-125' : 'text-white/10 hover:text-white/40'}`}>★</button>
+      <button key={star} disabled={!interactive} onClick={() => onRate?.(star)} className={`text-xl transition-all ${star <= rating ? 'text-amber-400 scale-125' : 'text-white/10 hover:text-white/40'}`}>★</button>
     ))}
   </div>
 );
@@ -28,7 +28,7 @@ const StatCard: React.FC<{ label: string, value: string | number, icon?: string 
   <div className="admin-card p-6 rounded-[32px] space-y-2 relative overflow-hidden group border border-white/5">
     <div className="flex justify-between items-start relative z-10">
       <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">{label}</span>
-      <span className="text-cyan-400 opacity-50">{icon}</span>
+      <span className="text-amber-400 opacity-50">{icon}</span>
     </div>
     <div className="text-4xl font-black text-white relative z-10">{value}</div>
     <div className="absolute -right-2 -bottom-2 text-white/5 text-7xl font-black">{icon}</div>
@@ -60,7 +60,7 @@ const DetailedStatList: React.FC<{ title: string; items: { name: string; count: 
 
 const SelectionBlock: React.FC<{ title: string; options: { label: string; icon?: any }[]; current: string; set: (s: string) => void; }> = ({ title, options, current, set }) => (
   <div className="w-full space-y-4">
-    <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">{title}</h3>
+    <h3 className="text-xs font-bold text-amber-500 uppercase tracking-[0.4em] text-center mb-4">{title}</h3>
     <div className="flex flex-wrap justify-center gap-3">
       {options.map(opt => (
         <button key={opt.label} onClick={() => set(opt.label)} className={`px-6 py-4 rounded-2xl border transition-all text-sm font-bold flex flex-col items-center gap-2 min-w-[120px] ${current === opt.label ? 'brand-bg text-white shadow-lg scale-105' : 'border-white/5 bg-white/5 text-white/40 hover:bg-white/10'}`}>
@@ -77,7 +77,7 @@ const ControlGroup: React.FC<{ title: string; options: any[]; current: string; o
     <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em]">{title}</label>
     <div className="grid grid-cols-1 gap-2">
       {options.map(opt => (
-        <button key={opt.label} onClick={() => onChange(opt.label)} className={`p-4 rounded-xl border text-right transition-all ${current === opt.label ? 'border-indigo-500/50 bg-indigo-500/10 text-white' : 'border-white/5 bg-white/5 text-white/30 hover:bg-white/10'}`}>
+        <button key={opt.label} onClick={() => onChange(opt.label)} className={`p-4 rounded-xl border text-right transition-all ${current === opt.label ? 'border-amber-500/50 bg-amber-500/10 text-white' : 'border-white/5 bg-white/5 text-white/30 hover:bg-white/10'}`}>
           <div className="text-xs font-bold mb-1">{opt.label}</div>
           <p className="text-[9px] opacity-30">{opt.desc}</p>
         </button>
@@ -176,10 +176,10 @@ const App: React.FC = () => {
     setIsPreprocessing(true);
     try {
       const dialect = DIALECTS.find(d => d.id === selectedDialectId)?.title || 'عربية فصحى';
-      const result = await majdService.preprocessText(inputText, {
+      const result = await savioService.preprocessText(inputText, {
         dialect: dialect,
         field: selectedProfile?.category || 'عام',
-        personality: selectedProfile?.name || 'معلق صوتي'
+        personality: selectedProfile?.name || 'معلق صوتي محترف'
       });
       setRefinedText(result);
     } catch (e) { console.error(e); }
@@ -192,9 +192,8 @@ const App: React.FC = () => {
     setIsGenerating(true);
     try {
       const baseVoice = getBaseVoiceForType(selectedProfile.voiceType, selectedProfile.gender);
-      const { dataUrl, duration } = await majdService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}`);
+      const { dataUrl, duration } = await savioService.generateVoiceOver(textToUse, baseVoice, `بصوت ${selectedProfile.name}، بأسلوب ${selectedProfile.category}`);
       
-      // عملية الحفظ للسيرفر اختيارية لضمان عدم تعطل المستخدم إذا فشل السيرفر
       let record: GenerationRecord;
       try {
         record = await api.saveRecord({
@@ -221,14 +220,15 @@ const App: React.FC = () => {
       
       setCurrentResult(record);
       setHistory(prev => [record, ...prev]);
-    } catch (e) { 
-      alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي. يرجى المحاولة مرة أخرى.");
+    } catch (e: any) { 
+      console.error("Generation error:", e);
+      alert("عذراً، حدث خطأ في محرك الذكاء الاصطناعي: " + (e.message || "يرجى المحاولة مرة أخرى."));
     }
     finally { setIsGenerating(false); }
   };
 
   const handleSubmitFeedback = async () => {
-    if (feedbackRating === 0) return alert("فين النجوم؟");
+    if (feedbackRating === 0) return alert("يرجى اختيار عدد النجوم أولاً");
     setIsSubmittingFeedback(true);
     const success = await api.submitFeedback(userId, feedbackRating, feedbackComment);
     if (success) {
@@ -248,7 +248,7 @@ const App: React.FC = () => {
       setFeedbacks(f);
       setIsAdminView(true);
       setShowLogin(false);
-    } else alert("كلمة السر غلط");
+    } else alert("كلمة السر غير صحيحة");
   };
 
   const getCatIcon = (key: string) => {
@@ -261,13 +261,16 @@ const App: React.FC = () => {
   };
 
   if (showIntro) return (
-    <div className="fixed inset-0 z-[500] bg-[#020617] flex items-center justify-center font-montserrat">
-      <div className="text-center animate-pulse"><h1 className="tech-logo text-7xl md:text-9xl">Majd</h1><p className="text-white/20 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">NEXT-GEN STUDIO VO</p></div>
+    <div className="fixed inset-0 z-[500] bg-[#0f172a] flex items-center justify-center font-montserrat">
+      <div className="text-center animate-pulse">
+        <h1 className="tech-logo text-7xl md:text-9xl">MAJD</h1>
+        <p className="text-amber-500/30 text-[10px] tracking-[1.5em] mt-8 uppercase font-bold">SMART STUDIO VO</p>
+      </div>
     </div>
   );
 
   if (isAdminView && stats) return (
-    <div className="min-h-screen bg-[#020617] text-white p-12 font-arabic overflow-y-auto custom-scrollbar">
+    <div className="min-h-screen bg-[#0f172a] text-white p-12 font-arabic overflow-y-auto custom-scrollbar">
       <header className="flex justify-between items-center mb-12">
         <div>
           <h1 className="text-4xl font-black brand-text">Majd Intelligence</h1>
@@ -284,10 +287,10 @@ const App: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-        <DetailedStatList title="أعلى الدول زيارة" items={stats.top_countries} total={stats.total_visits} color="bg-cyan-500" />
-        <DetailedStatList title="أعلى المدن" items={stats.top_cities} total={stats.total_visits} color="bg-indigo-500" />
+        <DetailedStatList title="أعلى الدول زيارة" items={stats.top_countries} total={stats.total_visits} color="bg-amber-500" />
+        <DetailedStatList title="أعلى المدن" items={stats.top_cities} total={stats.total_visits} color="bg-orange-500" />
         <DetailedStatList title="أنظمة التشغيل" items={stats.top_os} total={stats.total_visits} color="bg-emerald-500" />
-        <DetailedStatList title="المتصفحات" items={stats.top_browsers} total={stats.total_visits} color="bg-orange-500" />
+        <DetailedStatList title="المتصفحات" items={stats.top_browsers} total={stats.total_visits} color="bg-cyan-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -300,15 +303,15 @@ const App: React.FC = () => {
                   <p className="text-sm text-white font-medium mb-1 truncate leading-relaxed">"{r.text}"</p>
                   <div className="flex gap-2 text-[10px] opacity-40 mt-1">
                     <span>{new Date(r.timestamp).toLocaleString('ar-EG')}</span>
-                    <span className="text-cyan-400">| {r.selection?.dialect}</span>
-                    <span className="text-indigo-400">| {r.selection?.field}</span>
+                    <span className="text-amber-400">| {r.selection?.dialect}</span>
+                    <span className="text-orange-400">| {r.selection?.field}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                   <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500 hover:text-white transition-all">
+                   <button onClick={() => toggleAudio(r.id, r.audio_data)} className="p-3 rounded-xl bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white transition-all">
                      {playingId === r.id ? '⏸' : '▶'}
                    </button>
-                   <a href={r.audio_data} download={`vo_${r.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-indigo-500 hover:text-white transition-all">
+                   <a href={r.audio_data} download={`vo_${r.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
                      </svg>
@@ -337,24 +340,24 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
+    <div className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center py-20 px-6 font-arabic relative">
       {(isGenerating || isPreprocessing) && (
         <div className="fixed inset-0 z-[1000] bg-black/95 flex flex-col items-center justify-center text-center p-8">
-          <h2 className="tech-logo text-7xl animate-pulse mb-12">Majd</h2>
-          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 max-w-lg w-full transform transition-all animate-bounce">
+          <h2 className="tech-logo text-7xl animate-pulse mb-12">MAJD</h2>
+          <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 max-w-lg w-full transform transition-all animate-bounce">
              <p className="text-2xl font-bold text-white leading-relaxed">{WAITING_MESSAGES[currentWaitMsgIndex]}</p>
           </div>
         </div>
       )}
       
       <div className="fixed top-8 left-8 z-50">
-        <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-cyan-500/20 text-cyan-400 font-bold text-[10px] tracking-widest hover:bg-cyan-500 hover:text-white transition-all uppercase">Analytics</button>
+        <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl glass-3d border border-amber-500/20 text-amber-400 font-bold text-[10px] tracking-widest hover:bg-amber-500 hover:text-white transition-all uppercase">Analytics</button>
       </div>
 
       {showLogin && (
         <div className="fixed inset-0 z-[600] bg-black/95 flex items-center justify-center p-6">
           <form onSubmit={handleAdminLogin} className="glass-3d w-full max-w-md p-12 rounded-[50px] space-y-8 text-center">
-            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="رمز المرور" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl" />
+            <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="رمز المرور" className="w-full bg-white/5 border border-white/10 rounded-2xl py-5 text-center text-2xl outline-none focus:border-amber-500 transition-all" />
             <button className="w-full brand-bg py-5 rounded-2xl font-bold">دخول المدير</button>
             <button type="button" onClick={()=>setShowLogin(false)} className="text-white/20 text-xs">إلغاء</button>
           </form>
@@ -362,8 +365,8 @@ const App: React.FC = () => {
       )}
 
       <header className="mb-24 text-center">
-        <h1 className="tech-logo text-7xl md:text-9xl mb-4">Majd</h1>
-        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Professional Cloud VO Studio</p>
+        <h1 className="tech-logo text-7xl md:text-9xl mb-4">MAJD</h1>
+        <p className="text-white/30 text-[10px] uppercase tracking-[1em] font-bold">Premium Professional Studio VO</p>
       </header>
 
       <main className="w-full max-w-6xl space-y-16">
@@ -375,11 +378,11 @@ const App: React.FC = () => {
             <SelectionBlock title="الجنس" options={[{ label: 'ذكر', icon: <StudioIcons.Male /> }, { label: 'أنثى', icon: <StudioIcons.Female /> }]} current={selectedGender === 'male' ? 'ذكر' : 'أنثى'} set={(g) => setSelectedGender(g === 'ذكر' ? 'male' : 'female')} />
           </div>
 
-          <h3 className="text-xs font-bold text-cyan-500 uppercase tracking-[0.4em] text-center mb-4">اختيار المعلق الصوتي</h3>
+          <h3 className="text-xs font-bold text-amber-500 uppercase tracking-[0.4em] text-center mb-4">اختيار المعلق الصوتي</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 pt-4 border-t border-white/5">
             {availableProfiles.length > 0 ? availableProfiles.map(profile => (
-              <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-6 rounded-2xl border transition-all text-center space-y-3 ${selectedProfile?.name === profile.name ? 'border-cyan-500 bg-cyan-500/10 scale-105 shadow-xl shadow-cyan-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
-                <div className="flex justify-center text-cyan-400">{getCatIcon(profile.categoryKey)}</div>
+              <button key={profile.name} onClick={() => setSelectedProfile(profile)} className={`p-6 rounded-2xl border transition-all text-center space-y-3 ${selectedProfile?.name === profile.name ? 'border-amber-500 bg-amber-500/10 scale-105 shadow-xl shadow-amber-500/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+                <div className="flex justify-center text-amber-400">{getCatIcon(profile.categoryKey)}</div>
                 <div className="text-xs font-bold">{profile.name}</div>
                 <div className="text-[9px] opacity-30">{profile.category}</div>
               </button>
@@ -397,26 +400,26 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
             <div className="relative glass-3d rounded-[40px] p-8 border border-white/5">
               <label className="text-[10px] text-white/30 absolute top-4 right-8 font-bold uppercase tracking-widest">النص الأصلي</label>
-              <textarea className="w-full h-48 bg-transparent text-lg text-white/60 text-right outline-none resize-none pt-4" placeholder="اكتب النص هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
+              <textarea className="w-full h-48 bg-transparent text-lg text-white/60 text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="اكتب النص هنا..." value={inputText} onChange={e => setInputText(e.target.value)} />
               <div className="lg:hidden flex justify-end mt-2">
                  <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-6 py-2 rounded-xl brand-bg text-white font-bold text-xs shadow-lg hover:scale-105 transition-all">محسن النص AI</button>
               </div>
             </div>
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 hidden lg:block">
-              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:scale-105 transition-all border border-white/10">محسن النص AI</button>
+              <button onClick={handleRefineText} disabled={!inputText.trim() || isPreprocessing} className="px-8 py-4 rounded-2xl brand-bg text-white font-bold text-sm shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:scale-105 transition-all border border-white/10">محسن النص AI</button>
             </div>
-            <div className={`relative glass-3d rounded-[40px] p-8 border-cyan-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-cyan-500/50' : 'opacity-30'}`}>
-              <label className="text-[10px] text-cyan-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
-              <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
+            <div className={`relative glass-3d rounded-[40px] p-8 border-amber-500/20 transition-all ${refinedText ? 'opacity-100 ring-1 ring-amber-500/50' : 'opacity-30'}`}>
+              <label className="text-[10px] text-amber-400 absolute top-4 right-8 font-bold uppercase tracking-widest">النص المحسن ذكياً</label>
+              <textarea className="w-full h-48 bg-transparent text-lg text-white text-right outline-none resize-none pt-4 custom-scrollbar" placeholder="هنا سيظهر النص المحسن..." value={refinedText} onChange={e => setRefinedText(e.target.value)} />
             </div>
           </div>
           <button onClick={handleGenerate} disabled={isGenerating} className="w-full py-8 rounded-[35px] brand-bg text-white text-xl font-black shadow-2xl hover:scale-[1.01] transition-all mt-8">توليد ورفع الصوت</button>
         </section>
 
         {currentResult && (
-          <div className="glass-3d p-10 rounded-[40px] border-cyan-500/30 flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="glass-3d p-10 rounded-[40px] border-amber-500/30 flex flex-col md:flex-row items-center justify-between gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex items-center gap-8">
-              <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-24 w-24 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-rose-600' : ''}`}>
+              <button onClick={() => toggleAudio(currentResult.id, currentResult.audio_data)} className={`h-24 w-24 rounded-full brand-bg flex items-center justify-center text-white shadow-xl ${playingId === currentResult.id ? 'bg-red-600' : ''}`}>
                 <span className="text-3xl">{playingId === currentResult.id ? "⏸" : "▶"}</span>
               </button>
               <div className="text-right">
@@ -425,11 +428,11 @@ const App: React.FC = () => {
                 <div className="mt-4"><RatingStars rating={currentResult.rating} interactive onRate={(r) => { api.updateRating(currentResult.id, r); setCurrentResult({...currentResult, rating: r}); }} /></div>
               </div>
             </div>
-            <a href={currentResult.audio_data} download={`maj_vo_${currentResult.id}.wav`} className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
+            <a href={currentResult.audio_data} download={`majd_vo_${currentResult.id}.wav`} className="px-12 py-6 rounded-[28px] brand-bg text-white font-black hover:brightness-110 shadow-2xl">تحميل المقطع</a>
           </div>
         )}
 
-        <section className="glass-3d p-12 rounded-[50px] border border-cyan-500/10">
+        <section className="glass-3d p-12 rounded-[50px] border border-amber-500/10">
           <div className="max-w-4xl mx-auto space-y-12">
             <div className="text-center space-y-4"><h3 className="text-3xl font-black brand-text">رأيك يهمنا ! ⭐</h3></div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -437,10 +440,10 @@ const App: React.FC = () => {
                 {!feedbackSent ? (
                   <div className="space-y-6 glass-3d p-8 rounded-3xl">
                     <div className="flex justify-center"><RatingStars rating={feedbackRating} interactive onRate={setFeedbackRating} /></div>
-                    <textarea className="w-full p-6 rounded-3xl bg-white/5 border border-white/10 outline-none text-right text-sm h-32" placeholder="رأيك بالمنصة؟" value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} />
+                    <textarea className="w-full p-6 rounded-3xl bg-white/5 border border-white/10 outline-none text-right text-sm h-32 focus:border-amber-500/30" placeholder="رأيك بالمنصة؟" value={feedbackComment} onChange={(e) => setFeedbackComment(e.target.value)} />
                     <button onClick={handleSubmitFeedback} disabled={isSubmittingFeedback} className="w-full py-4 rounded-2xl brand-bg text-white font-bold">{isSubmittingFeedback ? "جاري الإرسال ..." : "إرسال التقييم"}</button>
                   </div>
-                ) : <div className="py-10 text-center"><h4 className="text-2xl font-bold text-cyan-400">وصل يا بطل! ❤️</h4></div>}
+                ) : <div className="py-10 text-center"><h4 className="text-2xl font-bold text-amber-400">شكراً لك! تقييمك وصل بنجاح ❤️</h4></div>}
               </div>
               <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">{publicFeedbacks.map((f, i) => (<div key={i} className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-2"><RatingStars rating={f.rating} /><p className="text-xs text-white/60 italic">"{f.comment || 'تقييم ممتاز'}"</p></div>))}</div>
             </div>
@@ -452,13 +455,13 @@ const App: React.FC = () => {
           <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
             {history.length > 0 ? history.map((rec) => (
               <div key={rec.id} className="p-6 rounded-3xl bg-white/5 flex items-center justify-between hover:bg-white/10 transition-all border border-transparent hover:border-white/5">
-                <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
+                <button onClick={() => toggleAudio(rec.id, rec.audio_data)} className="h-14 w-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">{playingId === rec.id ? "■" : "▶"}</button>
                 <div className="text-right flex-1 truncate mx-4">
                   <p className="text-sm truncate text-white/80">"{rec.text}"</p>
                   <span className="text-[10px] opacity-20">{new Date(rec.timestamp).toLocaleDateString('ar-EG')}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                   <a href={rec.audio_data} download={`my_vo_${rec.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-indigo-500 hover:text-white transition-all">
+                   <a href={rec.audio_data} download={`majd_vo_${rec.id}.wav`} className="p-3 rounded-xl bg-white/5 text-white/40 hover:bg-amber-500 hover:text-white transition-all">
                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2">
                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round"/>
                      </svg>
@@ -469,7 +472,7 @@ const App: React.FC = () => {
           </div>
         </section>
       </main>
-      <footer className="mt-40 text-center opacity-10 text-[10px] uppercase font-black tracking-[1em] pb-10">Majd STUDIO VO • CLOUD DRIVEN</footer>
+      <footer className="mt-40 text-center opacity-10 text-[10px] uppercase font-black tracking-[1em] pb-10">MAJD STUDIO VO • CLOUD AI DRIVEN</footer>
     </div>
   );
 };
