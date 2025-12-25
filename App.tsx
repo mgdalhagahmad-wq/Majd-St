@@ -175,7 +175,7 @@ const App: React.FC = () => {
   };
 
   const testEngine = async () => {
-    setDiagResult("جاري الفحص...");
+    setDiagResult("جاري فحص المحركات... يرجى الانتظار 10 ثوانٍ.");
     const res = await savioService.testConnection();
     setDiagResult(res.message);
   };
@@ -195,11 +195,7 @@ const App: React.FC = () => {
     } catch (e: any) { 
         console.error(e);
         const msg = e.message || "";
-        if (msg.includes("429")) {
-            alert("🛑 خطأ 429: مفتاحك المدفوع يواجه قيوداً في Google Cloud. \n\nتأكد من:\n1. أن الـ Quota للنماذج التجريبية ليست 0.\n2. أن المفتاح مربوط فعلياً بمشروع الفوترة.");
-        } else {
-            alert("حدث خطأ: " + msg);
-        }
+        alert(`🚨 خطأ في معالجة النص: ${msg}\n\nنصيحة: إذا كنت تستخدم باقة مدفوعة، تأكد من تفعيل Gemini API لمشروعك السحابي.`);
     }
     finally { 
         setIsPreprocessing(false); 
@@ -246,11 +242,7 @@ const App: React.FC = () => {
     } catch (e: any) { 
       console.error("Generation error:", e);
       const msg = e.message || "";
-      if (msg.includes("429")) {
-          alert("🛑 خطأ 429: المحرك غير قادر على سحب حصة من جوجل حالياً. يرجى مراجعة إعدادات Quota في Google Cloud Console.");
-      } else {
-          alert("عذراً، حدث خطأ: " + msg);
-      }
+      alert(`🛑 فشل توليد الصوت: ${msg}\n\nهذا الخطأ 429 يعني أن جوجل لم تسمح لهذا النموذج بالعمل بعد. يرجى الانتظار دقيقة والتحميل مجدداً.`);
     }
     finally { 
         setIsGenerating(false); 
@@ -308,14 +300,14 @@ const App: React.FC = () => {
           <p className="text-white/20 text-xs mt-2 uppercase tracking-widest">Advanced Analytics Dashboard Pro</p>
         </div>
         <div className="flex gap-4">
-          <button onClick={testEngine} className="px-6 py-4 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold hover:bg-emerald-500 hover:text-white transition-all">اختيار المحرك AI</button>
+          <button onClick={testEngine} className="px-6 py-4 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold hover:bg-emerald-500 hover:text-white transition-all">اختبار المحركات AI</button>
           <button onClick={() => setIsAdminView(false)} className="px-8 py-4 rounded-2xl brand-bg font-black shadow-lg hover:scale-105 transition-all">العودة للاستوديو</button>
         </div>
       </header>
 
       {diagResult && (
-        <div className="mb-8 p-6 rounded-3xl glass-3d border-emerald-500/30 text-emerald-400 font-bold text-center">
-            نتيجة الفحص: {diagResult}
+        <div className="mb-8 p-8 rounded-3xl glass-3d border-emerald-500/30 text-emerald-400 font-bold text-center text-lg shadow-2xl animate-bounce">
+            {diagResult}
         </div>
       )}
 
